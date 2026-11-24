@@ -10,6 +10,10 @@ RUN npm ci --legacy-peer-deps
 # Copy application source code
 COPY . .
 
+# Pass Vite public env vars at build time (Railway injects service variables as build args)
+ARG VITE_GOOGLE_MAPS_API_KEY
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
+
 # Type-check and build Vite frontend + esbuild server bundle
 RUN npx tsc --noEmit --incremental false && npm run build
 
