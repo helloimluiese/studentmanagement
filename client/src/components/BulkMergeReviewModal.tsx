@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { SchoolRegistry } from "@shared/schema";
 import { useBulkMergeSchools } from "@/hooks/use-schools";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Merge, MapPin, CheckCircle2, Minimize2, Maximize2, X, AlertCircle } from "lucide-react";
+import { Loader2, Merge, MapPin, CheckCircle2, Minus, Maximize2, X, AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -205,6 +205,18 @@ export function BulkMergeReviewModal({
         }}
       >
         <DialogContent className="sm:max-w-xl">
+          {isWorking && (
+            <button
+              type="button"
+              onClick={handleMinimize}
+              title="Minimize to background"
+              aria-label="Minimize to background"
+              className="absolute right-10 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <Minus className="h-4 w-4" />
+              <span className="sr-only">Minimize</span>
+            </button>
+          )}
           {step === "review" && (
             <>
               <DialogHeader>
@@ -274,7 +286,7 @@ export function BulkMergeReviewModal({
           )}
 
           {step === "merging" && (
-            <div className="py-10 flex flex-col items-center justify-center space-y-6">
+            <div className="py-12 flex flex-col items-center justify-center space-y-6">
               <Loader2 className="h-12 w-12 animate-spin text-amber-500" />
               <div className="text-center space-y-2">
                 <h3 className="font-semibold text-lg">Merging Records...</h3>
@@ -283,15 +295,11 @@ export function BulkMergeReviewModal({
                 </p>
               </div>
               <Progress value={progress} className="w-[80%]" />
-              <Button variant="outline" size="sm" onClick={handleMinimize} className="gap-2">
-                <Minimize2 className="h-4 w-4" />
-                Run in Background
-              </Button>
             </div>
           )}
 
           {step === "geolocating" && (
-            <div className="py-10 flex flex-col items-center justify-center space-y-6">
+            <div className="py-12 flex flex-col items-center justify-center space-y-6">
               <MapPin className="h-12 w-12 animate-bounce text-blue-500" />
               <div className="text-center space-y-2">
                 <h3 className="font-semibold text-lg">Geolocating Master Records...</h3>
@@ -300,10 +308,6 @@ export function BulkMergeReviewModal({
                 </p>
               </div>
               <Progress value={progress} className="w-[80%]" />
-              <Button variant="outline" size="sm" onClick={handleMinimize} className="gap-2">
-                <Minimize2 className="h-4 w-4" />
-                Run in Background
-              </Button>
             </div>
           )}
 

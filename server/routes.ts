@@ -789,7 +789,9 @@ export async function registerRoutes(
       });
     } catch (err: any) {
       console.error("Auto-sync error:", err);
-      res.status(500).json({ success: false, message: err.message || "Failed to sync" });
+      const msg = err?.message || "Failed to sync";
+      const isClientError = /google sheet|spreadsheet id|invalid url|public or shared|returned 40[0134]/i.test(msg);
+      res.status(isClientError ? 400 : 500).json({ success: false, message: msg });
     }
   });
 

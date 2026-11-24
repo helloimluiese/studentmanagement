@@ -41,6 +41,16 @@ export async function previewIntegrationSource(
   const text = await response.text();
 
   if (!response.ok) {
+    if (input.sourceType === "googleSheets" && response.status === 400) {
+      throw new Error(
+        "Google Sheets returned 400. Make sure the link is a native Google Sheet (not a raw .xlsx file in Google Drive — click File > Save as Google Sheets) and is shared as 'Anyone with the link (Viewer)'."
+      );
+    }
+    if (input.sourceType === "googleSheets" && (response.status === 401 || response.status === 403)) {
+      throw new Error(
+        "Google Sheet is private. Click Share > General access > 'Anyone with the link (Viewer)' and try again."
+      );
+    }
     throw new Error(`Source returned ${response.status}: ${text.slice(0, 160)}`);
   }
 
@@ -183,17 +193,31 @@ function collectFields(records: SourceRecord[]): string[] {
 }
 
 function toGoogleSheetsCsvUrl(sourceUrl: string): string {
-  const url = new URL(sourceUrl);
+  const url = new URL(sourceUrl.trim());
   if (url.hostname !== "docs.google.com") return sourceUrl;
-  if (url.pathname.includes("/export")) return sourceUrl;
+  if (url.pathname.includes("/export") || url.searchParams.get("output") === "csv") return sourceUrl;
+
+  const gid = url.searchParams.get("gid") || sourceUrl.match(/[?#&]gid=(\d+)/)?.[1];
+
+  // Handle "Publish to the web" URLs: /spreadsheets/d/e/2PACX-.../pubhtml
+  const pubMatch = url.pathname.match(/\/spreadsheets\/d\/e\/([^/]+)/);
+  if (pubMatch) {
+    const pubId = pubMatch[1];
+    return gid
+      ? `https://docs.google.com/spreadsheets/d/e/${pubId}/pub?gid=${gid}&single=true&output=csv`
+      : `https://docs.google.com/spreadsheets/d/e/${pubId}/pub?output=csv`;
+  }
 
   const spreadsheetId = url.pathname.match(/\/spreadsheets\/d\/([^/]+)/)?.[1];
   if (!spreadsheetId) {
     throw new Error("Google Sheets URL must include a spreadsheet ID.");
   }
 
-  const gid = url.searchParams.get("gid") || sourceUrl.match(/[?#&]gid=(\d+)/)?.[1] || "0";
-  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
+  // Omit gid when not explicitly specified so Google exports the first active sheet
+  // even if Sheet1 (gid=0) was deleted or replaced during Excel import.
+  return gid
+    ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`
+    : `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv`;
 }
 
 function isPlainRecord(value: unknown): value is SourceRecord {
