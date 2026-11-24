@@ -649,10 +649,7 @@ export default function Dashboard() {
           )}
           data-gis-draw-occlude="top"
         >
-          <div className={cn(
-            "mx-auto grid h-full w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4 sm:px-6",
-            mainTab !== "map" && "max-w-7xl",
-          )}>
+          <div className="mx-auto grid h-full w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 px-3 sm:grid-cols-[1fr_auto_1fr] sm:gap-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-2.5">
               <MapPin className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} aria-hidden />
               <div className="hidden lg:flex flex-col">
