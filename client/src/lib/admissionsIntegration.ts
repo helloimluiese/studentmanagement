@@ -108,7 +108,7 @@ export const SYSTEM_FIELDS: AdmissionsSystemField[] = [
   {
     key: "studentNumber",
     label: "Student Number",
-    aliases: ["student number", "student_number", "student id", "student_id", "lrn", "application number", "applicant id"],
+    aliases: ["student number", "student_number", "student #", "student no", "student id", "student_id", "lrn", "application number", "applicant id"],
   },
   {
     key: "feederSchoolRegistry",
@@ -200,7 +200,7 @@ export const SYSTEM_FIELDS: AdmissionsSystemField[] = [
   {
     key: "status",
     label: "Admission Status",
-    aliases: ["status", "admission status", "enrollment status", "application status"],
+    aliases: ["status", "fcabr", "admission status", "enrollment status", "application status"],
   },
   {
     key: "contactNumber",

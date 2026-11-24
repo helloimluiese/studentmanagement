@@ -731,28 +731,55 @@ export async function registerRoutes(
 
       const result = await previewIntegrationSource(payload);
       
-      // Auto-map generic Google Sheet columns to standard fields
+      // Auto-map Google Sheet columns (supports both standard headers and Trimex's 25-column enrollment sheet format)
       const mappedRecords = result.records.map((r: any) => {
-        const getVal = (possibleKeys: string[]) => {
-          const key = Object.keys(r).find(k => possibleKeys.some(p => k.toLowerCase().includes(p)));
-          return key ? String(r[key]) : undefined;
+        const keys = Object.keys(r);
+        const getExactOrIncludes = (exactList: string[], includesList: string[] = []) => {
+          const exactKey = keys.find((k) => exactList.includes(k.trim().toLowerCase().replace(/\s*:\s*$/, "")));
+          if (exactKey && r[exactKey] !== undefined && String(r[exactKey]).trim() !== "") {
+            return String(r[exactKey]).trim();
+          }
+          const incKey = keys.find((k) => {
+            const norm = k.trim().toLowerCase();
+            return includesList.some((p) => norm.includes(p));
+          });
+          return incKey && r[incKey] !== undefined && String(r[incKey]).trim() !== ""
+            ? String(r[incKey]).trim()
+            : undefined;
         };
 
+        const orNo = getExactOrIncludes(["or no", "or number", "or #"], []);
+        const voucher = getExactOrIncludes(["vouchers", "voucher"], []);
+        const col11Brgy = r["__EMPTY"] !== undefined ? String(r["__EMPTY"]).trim() : "";
+        const col12Strand = r["__EMPTY_1"] !== undefined ? String(r["__EMPTY_1"]).trim() : "";
+
+        // Detect Iskolar ni Kap / Barangay Scholar from explicit column OR Trimex OR No (/INK, INK/)
+        const explicitScholar = getExactOrIncludes(
+          ["scholarship", "iskolar", "scholar", "iskolar ni kap", "barangay scholar"],
+          ["scholarship", "iskolar"]
+        );
+        const isInkFromOr = orNo ? /\bINK\b/i.test(orNo) : false;
+        const derivedScholarship = explicitScholar || (isInkFromOr ? (col11Brgy || "INK") : undefined) || (voucher && /iskolar|konskolar/i.test(voucher) ? voucher : undefined);
+
+        const addressVal = getExactOrIncludes(["address", "home address"], ["address"]);
+        const explicitBarangay = getExactOrIncludes(["barangay", "brgy"], ["barangay", "brgy"]);
+        const explicitStrand = getExactOrIncludes(["strand", "track"], ["strand"]);
+
         return {
-          enrollmentStatus: getVal(["status"]),
-          studentNumber: getVal(["student id", "student no", "student_number", "id", "student number"]),
-          fullName: getVal(["name", "full name", "fullname", "student name", "student_name"]),
-          previousSchool: getVal(["school", "previous", "graduated", "feeder"]),
-          program: getVal(["program", "course", "strand", "degree"]),
-          scholarship: getVal(["scholarship", "iskolar", "grant", "scholar", "iskolar ni kap"]),
-          municipality: getVal(["municipality", "city", "town"]),
-          province: getVal(["province"]),
-          barangay: getVal(["barangay", "brgy"]),
-          address: getVal(["address"]),
-          strand: getVal(["strand"]),
-          schedule: getVal(["schedule", "sched"]),
-          contactNumber: getVal(["contact", "contact no", "number", "phone"]),
-          requirements: getVal(["requirements", "req"]),
+          enrollmentStatus: getExactOrIncludes(["fcabr", "status", "admission status", "enrollment status"], ["status"]),
+          studentNumber: getExactOrIncludes(["student #", "student number", "student no", "student id", "student_number", "lrn"], ["student #", "student no", "student number", "student id"]),
+          fullName: getExactOrIncludes(["full name", "fullname", "student name", "name"], ["full name", "student name"]),
+          previousSchool: getExactOrIncludes(["previous school", "last school", "feeder school", "school name"], ["previous school", "last school", "feeder"]),
+          program: getExactOrIncludes(["program", "course", "degree"], ["program", "course"]),
+          scholarship: derivedScholarship,
+          municipality: getExactOrIncludes(["municipality", "city", "town"], ["municipality"]) || addressVal,
+          province: getExactOrIncludes(["province"], ["province"]),
+          barangay: explicitBarangay || (col11Brgy && !/konskolar/i.test(col11Brgy) ? col11Brgy : undefined),
+          address: addressVal,
+          strand: explicitStrand || col12Strand || undefined,
+          schedule: getExactOrIncludes(["schedule", "sched"], ["schedule"]),
+          contactNumber: getExactOrIncludes(["contact no", "contact number", "contact", "phone", "mobile"], ["contact no", "contact number", "mobile"]),
+          requirements: getExactOrIncludes(["requirements", "req"], ["requirements"]),
           importSource: "Google Sheets Auto-Sync",
         };
       });
