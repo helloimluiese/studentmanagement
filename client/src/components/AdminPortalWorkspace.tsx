@@ -86,6 +86,7 @@ export interface AdminPortalWorkspaceProps {
   onSectionChange: (section: AdminPortalSection) => void;
   schools: School[];
   processedStudents: StudentProcessed[];
+  studentDataMessage?: string;
   gisOverview?: {
     totalStudentsSynced: number;
     freshmenCount: number;
@@ -143,6 +144,7 @@ export function AdminPortalWorkspace({
   onSectionChange,
   schools,
   processedStudents,
+  studentDataMessage,
   gisOverview,
   importLogs,
   schoolsLoading,
@@ -786,222 +788,232 @@ export function AdminPortalWorkspace({
                   </Button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-                  <StatMini title="Total students synced" value={overview.totalStudentsSynced.toLocaleString()} icon={<GraduationCap className="h-4 w-4 text-emerald-500" />} />
-                  <StatMini title="Freshmen" value={String(overview.freshmenCount)} sub="SHS → Frosh" icon={<UserCircle2 className="h-4 w-4 text-blue-500" />} />
-                  <StatMini title="Transferees" value={String(overview.transfereeCount)} sub="College → Xfer" icon={<ArrowRightLeft className="h-4 w-4 text-purple-500" />} />
-                  <StatMini title="Top Program" value={chartData.topPrograms[0]?.name || "None"} sub="Scholar Analytics" icon={<Folder className="h-4 w-4 text-indigo-500" />} />
-                  <StatMini title="Top Department" value={chartData.topDepartments[0]?.name || "None"} sub="Scholar Analytics" icon={<Building2 className="h-4 w-4 text-sky-500" />} />
-                  <StatMini title="API sync status" value={overview.apiSyncStatus} icon={<CloudOff className="h-4 w-4 text-slate-400" />} />
-                  <StatMini title="Last sync" value={formatSyncTime(schoolsUpdatedAt)} sub="Registry data" icon={<Clock3 className="h-4 w-4 text-amber-500" />} />
-                </div>
+                {studentDataMessage ? (
+                  <p className="rounded-xl border border-border/60 bg-card p-4 text-sm text-muted-foreground" role="status">
+                    {studentDataMessage}
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+                      <StatMini title="Total students synced" value={overview.totalStudentsSynced.toLocaleString()} icon={<GraduationCap className="h-4 w-4 text-emerald-500" />} />
+                      <StatMini title="Freshmen" value={String(overview.freshmenCount)} sub="SHS → Frosh" icon={<UserCircle2 className="h-4 w-4 text-blue-500" />} />
+                      <StatMini title="Transferees" value={String(overview.transfereeCount)} sub="College → Xfer" icon={<ArrowRightLeft className="h-4 w-4 text-purple-500" />} />
+                      <StatMini title="Top Program" value={chartData.topPrograms[0]?.name || "None"} sub="Scholar Analytics" icon={<Folder className="h-4 w-4 text-indigo-500" />} />
+                      <StatMini title="Top Department" value={chartData.topDepartments[0]?.name || "None"} sub="Scholar Analytics" icon={<Building2 className="h-4 w-4 text-sky-500" />} />
+                      <StatMini title="API sync status" value={overview.apiSyncStatus} icon={<CloudOff className="h-4 w-4 text-slate-400" />} />
+                      <StatMini title="Last sync" value={formatSyncTime(schoolsUpdatedAt)} sub="Registry data" icon={<Clock3 className="h-4 w-4 text-amber-500" />} />
+                    </div>
 
-                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                  {/* Admission Demographics */}
-                  <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
-                    <CardHeader className="pb-2 pt-5 px-6">
-                      <CardTitle className="text-sm font-semibold text-foreground">Admission Demographics</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-72 px-2 pb-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={chartData.admissionDemographics} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={65} outerRadius={90} label={{ fontSize: 11, fill: '#94a3b8' }} stroke="none">
-                            {chartData.admissionDemographics.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={chartData.COLORS[index % chartData.COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
-                          <Legend wrapperStyle={{ fontSize: 12, paddingTop: '10px' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                      {/* Admission Demographics */}
+                      <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
+                        <CardHeader className="pb-2 pt-5 px-6">
+                          <CardTitle className="text-sm font-semibold text-foreground">Admission Demographics</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-72 px-2 pb-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={chartData.admissionDemographics} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={65} outerRadius={90} label={{ fontSize: 11, fill: '#94a3b8' }} stroke="none">
+                                {chartData.admissionDemographics.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={chartData.COLORS[index % chartData.COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
+                              <Legend wrapperStyle={{ fontSize: 12, paddingTop: '10px' }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
 
-                  {/* Year Level Distribution */}
-                  <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
-                    <CardHeader className="pb-2 pt-5 px-6">
-                      <CardTitle className="text-sm font-semibold text-foreground">Year Level Distribution</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-72 px-2 pb-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={chartData.yearLevelDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={65} outerRadius={90} label={{ fontSize: 11, fill: '#94a3b8' }} stroke="none">
-                            {chartData.yearLevelDistribution.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={chartData.COLORS[index % chartData.COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
-                          <Legend wrapperStyle={{ fontSize: 12, paddingTop: '10px' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
+                      {/* Year Level Distribution */}
+                      <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
+                        <CardHeader className="pb-2 pt-5 px-6">
+                          <CardTitle className="text-sm font-semibold text-foreground">Year Level Distribution</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-72 px-2 pb-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={chartData.yearLevelDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={65} outerRadius={90} label={{ fontSize: 11, fill: '#94a3b8' }} stroke="none">
+                                {chartData.yearLevelDistribution.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={chartData.COLORS[index % chartData.COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
+                              <Legend wrapperStyle={{ fontSize: 12, paddingTop: '10px' }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
 
-                  {/* Top Departments */}
-                  <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
-                    <CardHeader className="pb-2 pt-5 px-6">
-                      <CardTitle className="text-sm font-semibold text-foreground">Top Departments</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-72 px-4 pb-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.topDepartments} layout="vertical" margin={{ left: 50, right: 20 }}>
-                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
-                          <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                          <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11, fill: '#cbd5e1', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                          <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
-                          <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={24}>
-                            {chartData.topDepartments.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={getDepartmentColor(entry.name)} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
+                      {/* Top Departments */}
+                      <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
+                        <CardHeader className="pb-2 pt-5 px-6">
+                          <CardTitle className="text-sm font-semibold text-foreground">Top Departments</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-72 px-4 pb-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData.topDepartments} layout="vertical" margin={{ left: 50, right: 20 }}>
+                              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
+                              <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                              <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11, fill: '#cbd5e1', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                              <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
+                              <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={24}>
+                                {chartData.topDepartments.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={getDepartmentColor(entry.name)} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
 
-                  {/* Top Feeder Schools */}
-                  <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
-                    <CardHeader className="pb-2 pt-5 px-6">
-                      <CardTitle className="text-sm font-semibold text-foreground">Top Feeder Schools</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-72 px-4 pb-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.topFeederSchools} layout="vertical" margin={{ left: 100, right: 20 }}>
-                          <defs>
-                            <linearGradient id="feederGradient" x1="0" y1="0" x2="1" y2="0">
-                              <stop offset="0%" stopColor="#f59e0b" />
-                              <stop offset="100%" stopColor="#fbbf24" />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-                          <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                          <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 11, fill: '#475569', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                          <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                          <Bar dataKey="count" fill="url(#feederGradient)" radius={[0, 6, 6, 0]} barSize={24} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
+                      {/* Top Feeder Schools */}
+                      <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
+                        <CardHeader className="pb-2 pt-5 px-6">
+                          <CardTitle className="text-sm font-semibold text-foreground">Top Feeder Schools</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-72 px-4 pb-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData.topFeederSchools} layout="vertical" margin={{ left: 100, right: 20 }}>
+                              <defs>
+                                <linearGradient id="feederGradient" x1="0" y1="0" x2="1" y2="0">
+                                  <stop offset="0%" stopColor="#f59e0b" />
+                                  <stop offset="100%" stopColor="#fbbf24" />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                              <XAxis type="number" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                              <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 11, fill: '#475569', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                              <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
+                              <Bar dataKey="count" fill="url(#feederGradient)" radius={[0, 6, 6, 0]} barSize={24} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
 
-                  {/* Geographic Distribution */}
-                  <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
-                    <CardHeader className="pb-2 pt-5 px-6">
-                      <CardTitle className="text-sm font-semibold text-foreground">Top Municipalities</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-72 px-4 pb-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.geoDistribution} margin={{ top: 10, bottom: 20 }}>
-                          <defs>
-                            <linearGradient id="geoGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#38bdf8" />
-                              <stop offset="100%" stopColor="#0284c7" />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
-                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} angle={-25} textAnchor="end" height={40} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                          <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
-                          <Bar dataKey="count" fill="url(#geoGradient)" radius={[6, 6, 0, 0]} barSize={32} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
+                      {/* Geographic Distribution */}
+                      <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
+                        <CardHeader className="pb-2 pt-5 px-6">
+                          <CardTitle className="text-sm font-semibold text-foreground">Top Municipalities</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-72 px-4 pb-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData.geoDistribution} margin={{ top: 10, bottom: 20 }}>
+                              <defs>
+                                <linearGradient id="geoGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#38bdf8" />
+                                  <stop offset="100%" stopColor="#0284c7" />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
+                              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} angle={-25} textAnchor="end" height={40} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                              <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
+                              <Bar dataKey="count" fill="url(#geoGradient)" radius={[6, 6, 0, 0]} barSize={32} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
 
-                  {/* Top Scholar Programs */}
-                  <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
-                    <CardHeader className="pb-2 pt-5 px-6">
-                      <CardTitle className="text-sm font-semibold text-foreground">Top Scholar Programs</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-72 px-4 pb-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.topPrograms} layout="vertical" margin={{ left: 50, right: 20 }}>
-                          <defs>
-                            <linearGradient id="programGradient" x1="0" y1="0" x2="1" y2="0">
-                              <stop offset="0%" stopColor="#8b5cf6" />
-                              <stop offset="100%" stopColor="#7c3aed" />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
-                          <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                          <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11, fill: '#cbd5e1', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                          <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
-                          <Bar dataKey="count" fill="url(#programGradient)" radius={[0, 6, 6, 0]} barSize={24} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
+                      {/* Top Scholar Programs */}
+                      <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl">
+                        <CardHeader className="pb-2 pt-5 px-6">
+                          <CardTitle className="text-sm font-semibold text-foreground">Top Scholar Programs</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-72 px-4 pb-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData.topPrograms} layout="vertical" margin={{ left: 50, right: 20 }}>
+                              <defs>
+                                <linearGradient id="programGradient" x1="0" y1="0" x2="1" y2="0">
+                                  <stop offset="0%" stopColor="#8b5cf6" />
+                                  <stop offset="100%" stopColor="#7c3aed" />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
+                              <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                              <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11, fill: '#cbd5e1', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                              <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
+                              <Bar dataKey="count" fill="url(#programGradient)" radius={[0, 6, 6, 0]} barSize={24} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
 
-                  {/* Standalone Top Programs */}
-                  <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl lg:col-span-2">
-                    <CardHeader className="pb-2 pt-5 px-6">
-                      <CardTitle className="text-sm font-semibold text-foreground">
-                        Top Standalone Program: {chartData.topStandalonePrograms[0]?.name || "N/A"}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-72 px-4 pb-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.topStandalonePrograms} layout="vertical" margin={{ left: 50, right: 20 }}>
-                          <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
-                          <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                          <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 11, fill: '#cbd5e1', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                          <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
-                          <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={24}>
-                            {chartData.topStandalonePrograms.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={getPinColorByProgram(entry.name)} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
+                      {/* Standalone Top Programs */}
+                      <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl lg:col-span-2">
+                        <CardHeader className="pb-2 pt-5 px-6">
+                          <CardTitle className="text-sm font-semibold text-foreground">
+                            Top Standalone Program: {chartData.topStandalonePrograms[0]?.name || "N/A"}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-72 px-4 pb-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData.topStandalonePrograms} layout="vertical" margin={{ left: 50, right: 20 }}>
+                              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
+                              <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                              <YAxis dataKey="name" type="category" width={160} tick={{ fontSize: 11, fill: '#cbd5e1', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                              <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0f172a', color: '#f8fafc', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
+                              <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={24}>
+                                {chartData.topStandalonePrograms.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={getPinColorByProgram(entry.name)} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
 
-                  {/* Enrollment Trends */}
-                  <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl lg:col-span-2">
-                    <CardHeader className="pb-2 pt-5 px-6">
-                      <CardTitle className="text-sm font-semibold text-foreground">Sync Trends (Last 7 Days)</CardTitle>
-                    </CardHeader>
-                    <CardContent className="h-72 px-4 pb-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartData.enrollmentTrends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
-                          <XAxis
-                            dataKey="date"
-                            tick={{ fontSize: 11, fill: '#64748b' }}
-                            axisLine={false}
-                            tickLine={false}
-                            tickFormatter={(val) => {
-                              const d = new Date(val);
-                              return `${d.toLocaleString('en-US', { month: 'short' })} ${d.getDate()}`;
-                            }}
-                          />
-                          <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                          <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
-                          <Area type="monotone" dataKey="count" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#trendGradient)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </Card>
-                </div>
+                      {/* Enrollment Trends */}
+                      <Card className="border border-border/50 bg-card/80 shadow-sm backdrop-blur-xl rounded-2xl lg:col-span-2">
+                        <CardHeader className="pb-2 pt-5 px-6">
+                          <CardTitle className="text-sm font-semibold text-foreground">Sync Trends (Last 7 Days)</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-72 px-4 pb-4">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData.enrollmentTrends} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148, 163, 184, 0.15)" />
+                              <XAxis
+                                dataKey="date"
+                                tick={{ fontSize: 11, fill: '#64748b' }}
+                                axisLine={false}
+                                tickLine={false}
+                                tickFormatter={(val) => {
+                                  const d = new Date(val);
+                                  return `${d.toLocaleString('en-US', { month: 'short' })} ${d.getDate()}`;
+                                }}
+                              />
+                              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }} />
+                              <Area type="monotone" dataKey="count" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#trendGradient)" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </>
+                )}
               </div>
             </ScrollArea>
           </TabsContent>
 
           <TabsContent value="students" className="m-0 mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden">
             <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
-                <StudentStat title="Total Students" value={studentStats.total} />
-                <StudentStat title="OE Students" value={studentStats.active} tone="emerald" />
-                <StudentStat title="Mapped Students" value={studentStats.mapped} tone="sky" />
-                <StudentStat title="Unmapped Students" value={studentStats.unmapped} tone="amber" />
-                <StudentStat title="New Students" value={studentStats.newStudents} tone="violet" />
-                <StudentStat title="Archived Students" value={studentStats.archived} tone="slate" />
-              </div>
+              {!studentDataMessage && (
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+                  <StudentStat title="Total Students" value={studentStats.total} />
+                  <StudentStat title="OE Students" value={studentStats.active} tone="emerald" />
+                  <StudentStat title="Mapped Students" value={studentStats.mapped} tone="sky" />
+                  <StudentStat title="Unmapped Students" value={studentStats.unmapped} tone="amber" />
+                  <StudentStat title="New Students" value={studentStats.newStudents} tone="violet" />
+                  <StudentStat title="Archived Students" value={studentStats.archived} tone="slate" />
+                </div>
+              )}
 
               {/* Sub-tabs Switcher */}
               <div className="inline-flex h-9 w-fit items-center gap-1 rounded-xl border border-border/50 bg-muted/40 p-1 backdrop-blur-md">
@@ -1122,7 +1134,9 @@ export function AdminPortalWorkspace({
                         <TableBody>
                           {studentPageRows.length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={12} className="h-32 text-center text-muted-foreground">No students match the current filters.</TableCell>
+                              <TableCell colSpan={12} className="h-32 text-center text-muted-foreground">
+                                {studentDataMessage ?? "No students match the current filters."}
+                              </TableCell>
                             </TableRow>
                           ) : studentPageRows.map((student) => (
                             <TableRow key={student.id} data-state={studentSelected.has(student.id) ? "selected" : undefined}>

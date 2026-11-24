@@ -18,12 +18,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import type { SchoolRegistry, Student } from "@shared/schema";
-import type { ProgramAnalytics, ProgramSchoolRegistry } from "@shared/programIntelligence";
+import type { SchoolRegistry, StudentProcessed } from "@shared/schema";
+import { isStudentActiveForProgramGis, type ProgramAnalytics, type ProgramSchoolRegistry } from "@shared/programIntelligence";
 
 interface ThesisIntelligenceWorkspaceProps {
   schools: SchoolRegistry[];
-  students: Student[];
+  processedStudents: StudentProcessed[];
+  studentDataMessage?: string;
   programSchools: ProgramSchoolRegistry[];
   programAnalytics?: ProgramAnalytics | null;
   onLaunchDefenseMode: () => void;
@@ -32,7 +33,8 @@ interface ThesisIntelligenceWorkspaceProps {
 
 export function ThesisIntelligenceWorkspace({
   schools,
-  students,
+  processedStudents,
+  studentDataMessage,
   programSchools,
   programAnalytics,
   onLaunchDefenseMode,
@@ -41,7 +43,11 @@ export function ThesisIntelligenceWorkspace({
   const [activeTab, setActiveTab] = useState<"feeders" | "municipalities" | "departments" | "demographics">("feeders");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const totalEnrollees = students.length || 1739;
+  const activeStudents = useMemo(
+    () => processedStudents.filter(isStudentActiveForProgramGis),
+    [processedStudents],
+  );
+  const totalEnrollees = activeStudents.length;
   const mappedSchools = useMemo(() => schools.filter((s) => s.latitude && s.longitude), [schools]);
 
   // Municipal Breakdown
@@ -112,14 +118,13 @@ export function ThesisIntelligenceWorkspace({
     let otherEntry = 0;
     const yearLevels = new Map<string, number>();
 
-    for (const s of students) {
-      const student = s as any;
-      const entry = (student.entryClassification || "").toLowerCase();
+    for (const student of activeStudents) {
+      const entry = (student.admissionType || "").toLowerCase();
       if (entry.includes("fresh")) freshmen++;
       else if (entry.includes("trans")) transferees++;
       else otherEntry++;
 
-      const yl = student.yearLevel || "1st Year";
+      const yl = student.yearLevel?.trim() || "Unspecified";
       yearLevels.set(yl, (yearLevels.get(yl) || 0) + 1);
     }
 
@@ -129,7 +134,20 @@ export function ThesisIntelligenceWorkspace({
       otherEntry,
       yearLevels: Array.from(yearLevels.entries()).map(([level, count]) => ({ level, count })),
     };
-  }, [students]);
+  }, [activeStudents]);
+
+  if (studentDataMessage || totalEnrollees === 0) {
+    return (
+      <Card className="mx-auto w-full max-w-7xl">
+        <CardHeader>
+          <CardTitle>Student &amp; Feeder Analytics</CardTitle>
+          <CardDescription role="status">
+            {studentDataMessage ?? "No active student records yet."}
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-12 w-full">

@@ -153,7 +153,15 @@ export default function Dashboard() {
   const lastUpdatedMs = schoolsQuery.dataUpdatedAt || 0;
   const { data: referrals = [] } = useReferrals();
   const { data: students = [] } = useQuery<Student[]>({ queryKey: [api.students.list.path] });
-  const { data: processedStudents = [] } = useProcessedStudents();
+  const processedStudentsQuery = useProcessedStudents();
+  const processedStudents = processedStudentsQuery.data ?? [];
+  const studentDataMessage = processedStudentsQuery.isError
+    ? "Could not load student records."
+    : !processedStudentsQuery.data
+      ? "Loading student records..."
+      : processedStudents.length === 0
+        ? "No student records yet."
+        : undefined;
   const { data: gisOverview } = useGisOverview();
   const { data: importLogs = [] } = useImportLogs();
   const { data: enrollmentTargets = [] } = useQuery<{ targetType: string; targetName: string; targetValue: number }[]>({ 
@@ -619,6 +627,10 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
     }).length;
   }, [filteredProcessedStudents, programFilters, departments]);
 
+  const mapStudentDataMessage = studentDataMessage ?? (totalStudents === 0
+    ? mapViewMode === "scholars" ? "No scholars in this view." : "No enrollees in this view."
+    : undefined);
+
   const programAnalytics = useMemo(() => {
     const analytics = buildProgramAnalytics(programSchools, programFilters, filteredProcessedStudents);
     return {
@@ -1063,15 +1075,23 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
                       isScholarsMode={mapViewMode === "scholars"}
                     />
                   )}
-                  {mapViewMode === "scholars" ? (
-                    <Metric label="Total Scholars" value={totalStudents} />
+                  {mapStudentDataMessage ? (
+                    <p className="rounded-xl border border-border/50 bg-card/50 px-4 py-3 text-sm text-muted-foreground" role="status">
+                      {mapStudentDataMessage}
+                    </p>
                   ) : (
                     <>
-                      <Metric label={programFilterIsActive(programFilters) ? "Filtered Enrollees (GIS)" : "Mapped Enrollees (GIS)"} value={totalStudents} />
-                      <Metric label="Municipalities" value={municipalityCount} />
+                      {mapViewMode === "scholars" ? (
+                        <Metric label="Total Scholars" value={totalStudents} />
+                      ) : (
+                        <>
+                          <Metric label={programFilterIsActive(programFilters) ? "Filtered Enrollees (GIS)" : "Mapped Enrollees (GIS)"} value={totalStudents} />
+                          <Metric label="Municipalities" value={municipalityCount} />
+                        </>
+                      )}
+                      <AnalyticsInsightPanel analytics={programAnalytics} isScholarsMode={mapViewMode === "scholars"} />
                     </>
                   )}
-                  <AnalyticsInsightPanel analytics={programAnalytics} isScholarsMode={mapViewMode === "scholars"} />
                   <div className="rounded-xl border border-border/50 bg-card/50 px-4 py-3 shadow-sm backdrop-blur-md">
                     <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Last Updated</p>
                     <p className="mt-1 truncate font-mono text-xs text-foreground">{lastUpdatedMs ? new Date(lastUpdatedMs).toLocaleString() : "-"}</p>
@@ -1146,17 +1166,25 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
                     onEditSchool={openEditSchool}
                   />
                 )}
-                {mapViewMode === "scholars" ? (
-                  <Metric label="Total Scholars" value={totalStudents} />
+                {mapStudentDataMessage ? (
+                  <p className="rounded-xl border border-border/50 bg-card/50 px-4 py-3 text-sm text-muted-foreground" role="status">
+                    {mapStudentDataMessage}
+                  </p>
                 ) : (
                   <>
-                    <Metric label="Total Enrollees" value={totalStudents} />
-                    <Metric label="Mapped Enrollees (GIS)" value={mappedStudentsCount} />
-                    <Metric label="Unmapped / Distant" value={totalStudents - mappedStudentsCount} />
-                    <Metric label="Municipalities" value={municipalityCount} />
+                    {mapViewMode === "scholars" ? (
+                      <Metric label="Total Scholars" value={totalStudents} />
+                    ) : (
+                      <>
+                        <Metric label="Total Enrollees" value={totalStudents} />
+                        <Metric label="Mapped Enrollees (GIS)" value={mappedStudentsCount} />
+                        <Metric label="Unmapped / Distant" value={totalStudents - mappedStudentsCount} />
+                        <Metric label="Municipalities" value={municipalityCount} />
+                      </>
+                    )}
+                    <AnalyticsInsightPanel analytics={programAnalytics} isScholarsMode={mapViewMode === "scholars"} />
                   </>
                 )}
-                <AnalyticsInsightPanel analytics={programAnalytics} isScholarsMode={mapViewMode === "scholars"} />
                 <div className="rounded-xl border border-border/50 bg-card/50 px-4 py-3 shadow-sm backdrop-blur-md">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Last Updated</p>
                   <p className="mt-1 truncate font-mono text-xs text-foreground">{lastUpdatedMs ? new Date(lastUpdatedMs).toLocaleString() : "—"}</p>
@@ -1320,6 +1348,7 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
                 gisOverview={gisOverview}
                 importLogs={importLogs}
                 processedStudents={processedStudents}
+                studentDataMessage={studentDataMessage}
                 schools={schools}
                 schoolsLoading={isLoading}
                 schoolsUpdatedAt={lastUpdatedMs}
@@ -1341,7 +1370,8 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
             <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading Analytics...</div>}>
               <ThesisIntelligenceWorkspace
                 schools={schools}
-                students={students}
+                processedStudents={processedStudents}
+                studentDataMessage={studentDataMessage}
                 programSchools={programSchools}
                 programAnalytics={programAnalytics}
                 onLaunchDefenseMode={() => {

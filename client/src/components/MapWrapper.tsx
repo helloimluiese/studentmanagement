@@ -941,7 +941,7 @@ export default function MapWrapper({
         interactive={annotationInteractionEnabled}
       />
 
-      {uiMapSettings.programLegend && (
+      {uiMapSettings.programLegend && programAnalytics && programAnalytics.totalStudents > 0 && (
         <ProgramMapLegend
           analytics={programAnalytics}
           filters={programFilters}

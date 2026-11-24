@@ -70,7 +70,8 @@ export default function StudentManagement() {
                 <div>
                   <CardTitle className="text-[15px] font-semibold">Processed Students</CardTitle>
                   <CardDescription className="text-[13px] mt-1">
-                    {students.length} total students synced to the database.
+                    {isLoading ? "Loading student records..." : error ? "Could not load student records." :
+                      students.length === 0 ? "No student records yet." : `${students.length.toLocaleString()} student records`}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-4">
