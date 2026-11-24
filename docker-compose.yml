@@ -1,0 +1,72 @@
+services:
+  # Primary MySQL 8.4 LTS Database
+  mysql:
+    image: mysql:8.4
+    container_name: studentmapping_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-student_mapping}
+      MYSQL_USER: ${MYSQL_USER:-studentmapping_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+    ports:
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    volumes:
+      - mysqldata:/var/lib/mysql
+      - ./mysql_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max-connections=150
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # Redis 7 Caching & Queue Tier (used in Pillars 3 & 4)
+  redis:
+    image: redis:7-alpine
+    container_name: studentmapping_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Express Backend + Vite Frontend GIS Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: studentmapping_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 5000
+      MYSQL_URL: mysql://${MYSQL_USER:-studentmapping_app}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-student_mapping}
+      DATABASE_URL: mysql://${MYSQL_USER:-studentmapping_app}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-student_mapping}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "${APP_HOST_PORT:-5000}:5000"
+    volumes:
+      - uploads_data:/app/server/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  mysqldata:
+  redisdata:
+  uploads_data:

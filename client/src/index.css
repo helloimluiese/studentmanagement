@@ -1,0 +1,1276 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: 'DM Sans', sans-serif;
+    --font-display: 'Plus Jakarta Sans', sans-serif;
+
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-soft: #F1F5F9;
+    --text: #111827;
+    --muted: #6B7280;
+    --border: #E5E7EB;
+    --primary: #7B1113;
+    --primary-hover: #991B1B;
+
+    --background: 210 40% 98%;
+    --foreground: 221 39% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 221 39% 11%;
+    --card-border: 220 13% 91%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 39% 11%;
+    --popover-border: 220 13% 91%;
+
+    --primary-hsl: 359 76% 27%;
+    --primary-foreground: 210 40% 98%;
+    --primary-border: rgba(123, 17, 19, 0.28);
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 221 39% 11%;
+    --secondary-border: rgba(226, 232, 240, 0.95);
+
+    --muted-hsl: 210 40% 96%;
+    --muted-foreground: 220 9% 46%;
+    --muted-border: rgba(226, 232, 240, 0.9);
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 221 39% 11%;
+    --accent-border: rgba(226, 232, 240, 0.95);
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --destructive-border: rgba(239, 68, 68, 0.3);
+
+    --border-hsl: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 359 76% 27%;
+    --button-outline: rgba(148, 163, 184, 0.38);
+
+    --radius: 1rem;
+
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 221 39% 11%;
+    --sidebar-primary: 359 76% 27%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary-border: rgba(123, 17, 19, 0.28);
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 221 39% 11%;
+    --sidebar-accent-border: rgba(226, 232, 240, 0.9);
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 359 76% 27%;
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  html[data-theme="dark"],
+  html.dark {
+    --bg: #0B1120;
+    --surface: #0F172A;
+    --surface-soft: #1E293B;
+    --text: #F8FAFC;
+    --muted: #94A3B8;
+    --border: #334155;
+    --primary: #B91C1C;
+    --primary-hover: #DC2626;
+
+    --background: 222 47% 8%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --card-border: 217 33% 18%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --popover-border: 217 33% 18%;
+
+    --primary-hsl: 0 74% 42%;
+    --primary-foreground: 210 40% 98%;
+    --primary-border: rgba(185, 28, 28, 0.36);
+
+    --secondary: 217 32% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --secondary-border: rgba(51, 65, 85, 0.9);
+
+    --muted-hsl: 217 32% 17%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --muted-border: rgba(51, 65, 85, 0.9);
+
+    --accent: 217 32% 17%;
+    --accent-foreground: 210 40% 98%;
+    --accent-border: rgba(51, 65, 85, 0.9);
+
+    --destructive: 0 73% 41%;
+    --destructive-foreground: 210 40% 98%;
+    --destructive-border: rgba(220, 38, 38, 0.38);
+
+    --border-hsl: 217 33% 18%;
+    --input: 217 32% 17%;
+    --ring: 0 74% 42%;
+    --button-outline: rgba(148, 163, 184, 0.28);
+
+    --sidebar: 222 47% 10%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 0 74% 42%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-primary-border: rgba(185, 28, 28, 0.36);
+    --sidebar-accent: 217 32% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-accent-border: rgba(51, 65, 85, 0.9);
+    --sidebar-border: 217 33% 18%;
+    --sidebar-ring: 0 74% 42%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body, #root {
+    height: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    display: flex;
+    flex-direction: column;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-color: var(--bg);
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(210,100%,96%,1) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(359, 76%, 98%, 1) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsla(210,100%,96%,1) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(0,0%,98%,1) 0px, transparent 50%);
+    color: var(--text);
+    font-family: var(--font-sans);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    @apply tracking-tight font-semibold;
+  }
+}
+
+/* Base Leaflet overrides for styling */
+.leaflet-container {
+  font-family: var(--font-sans);
+  z-index: 10;
+  height: 100% !important;
+  width: 100% !important;
+  background: #edf2ef;
+  outline: none;
+  contain: layout paint size;
+}
+
+.leaflet-tile-pane {
+  filter: saturate(0.78) contrast(0.96) brightness(1.03);
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+.leaflet-tile {
+  backface-visibility: hidden;
+}
+
+.leaflet-control-zoom {
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 18px 35px -22px rgba(15, 23, 42, 0.65) !important;
+  backdrop-filter: blur(18px);
+}
+
+.leaflet-control-zoom a {
+  width: 38px !important;
+  height: 38px !important;
+  line-height: 38px !important;
+  border: 0 !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #0f172a !important;
+}
+
+.leaflet-control-attribution {
+  border-radius: 8px 0 0 0;
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(12px);
+  color: #64748b !important;
+  font-size: 10px;
+}
+
+.leaflet-popup-content-wrapper {
+  @apply rounded-lg shadow-2xl p-0 overflow-hidden border border-border bg-card text-card-foreground;
+}
+
+.leaflet-popup-content {
+  @apply m-0;
+}
+
+.leaflet-popup-tip {
+  @apply bg-card border-border;
+}
+
+/* Custom Marker Styling */
+.custom-leaflet-icon {
+  background: transparent;
+  border: none;
+  overflow: visible !important;
+}
+
+@layer components {
+  .shadcn-card {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+    box-shadow: 0 14px 36px -30px rgba(15, 23, 42, 0.35);
+  }
+
+  html[data-theme="dark"] .shadcn-card {
+    box-shadow: 0 18px 48px -34px rgba(0, 0, 0, 0.72);
+  }
+}
+
+.leaflet-marker-icon.custom-leaflet-icon {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.custom-marker-wrapper {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.custom-marker-wrapper:hover {
+  transform: scale(1.15) translateY(-4px);
+}
+
+.gis-marker {
+  position: relative;
+  width: 28px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  contain: layout style;
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  isolation: isolate;
+  overflow: visible;
+}
+
+.gis-marker-core {
+  position: relative;
+  width: 28px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.16s cubic-bezier(0.2, 0, 0, 1), filter 0.16s ease;
+  filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.22));
+}
+
+.gis-pin-svg-wrap {
+  position: relative;
+  width: 28px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.gis-pin-svg {
+  width: 28px;
+  height: 36px;
+  display: block;
+  pointer-events: none;
+}
+
+.gis-marker-count {
+  position: absolute;
+  left: 50%;
+  top: 13px;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  z-index: 3;
+  pointer-events: none;
+  letter-spacing: -0.02em;
+}
+
+.gis-marker-count.text-tight {
+  font-size: 8.5px;
+  letter-spacing: -0.04em;
+}
+
+.gis-marker:hover .gis-marker-core {
+  transform: translateY(-4px) scale(1.15);
+  filter: drop-shadow(0 8px 16px rgba(15, 23, 42, 0.35));
+}
+
+.leaflet-marker-icon:hover {
+  z-index: 99999 !important;
+}
+
+.leaflet-marker-icon:focus-visible .gis-marker-core,
+.leaflet-marker-icon:focus-within .gis-marker-core,
+.gis-marker.is-selected .gis-marker-core {
+  transform: translateY(-4px) scale(1.15);
+  filter: drop-shadow(0 0 0 3px #ffffff) drop-shadow(0 8px 16px rgba(15, 23, 42, 0.4));
+}
+
+/* Cluster Marker */
+.gis-marker-cluster .gis-pin-svg {
+  filter: drop-shadow(0 0 0 1.5px #ffffff);
+}
+
+.gis-marker-cluster .gis-pin-glow {
+  fill: rgba(255, 255, 255, 0.35);
+}
+
+.gis-marker-cluster .gis-marker-core::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 13.5px;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--marker-color, #3b82f6) 20%, transparent);
+  transform: translate(-50%, -50%);
+  z-index: -1;
+  animation: clusterPulse 2.4s infinite ease-out;
+}
+
+@keyframes clusterPulse {
+  0% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.8; }
+  70% { transform: translate(-50%, -50%) scale(1.35); opacity: 0; }
+  100% { transform: translate(-50%, -50%) scale(1.35); opacity: 0; }
+}
+
+.gis-marker-name-label {
+  position: absolute;
+  left: calc(100% + 2px);
+  top: 50%;
+  z-index: 3;
+  max-width: 170px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 4px 12px -2px rgba(15, 23, 42, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  overflow: hidden;
+  padding: 4px 7px;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  transition: opacity 0.15s ease;
+}
+
+.gis-marker:hover .gis-marker-name-label {
+  opacity: 0;
+}
+
+.gis-marker-label {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  z-index: 99999;
+  display: grid;
+  min-width: 175px;
+  max-width: min(250px, calc(100vw - 48px));
+  transform: translateX(-50%) translateY(4px) scale(0.96);
+  transform-origin: bottom center;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  box-shadow:
+    0 20px 35px -10px rgba(15, 23, 42, 0.25),
+    0 4px 10px -2px rgba(15, 23, 42, 0.08);
+  opacity: 0;
+  overflow: visible;
+  padding: 9px 12px;
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition:
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    visibility 0.18s ease;
+  visibility: hidden;
+  white-space: normal;
+}
+
+.gis-marker-label::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
+  border-right: 1px solid rgba(226, 232, 240, 0.85);
+  background: #ffffff;
+}
+
+.gis-marker-label-title,
+.gis-marker-label-subtitle,
+.gis-marker-label-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gis-marker-label-title {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.gis-marker-label-subtitle {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: normal;
+}
+
+.gis-marker-label-meta {
+  margin-top: 6px;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.08);
+  color: #0f766e;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  padding: 3.5px 7px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.gis-marker:hover .gis-marker-label,
+.leaflet-marker-icon:focus-within .gis-marker-label,
+.gis-marker.is-active .gis-marker-label {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.leaflet-zoom-animated .gis-marker-label {
+  transition-duration: 0.12s;
+}
+
+/* Dark mode basemap filter for OpenStreetMap tiles */
+.osm-dark-tiles {
+  filter: brightness(0.6) invert(1) contrast(3.2) hue-rotate(200deg) saturate(0.25) brightness(0.75) !important;
+}
+
+/* Custom sleek scrollbar */
+.gis-custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+.gis-custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.gis-custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.gis-custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+.gis-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+.program-map-legend {
+  position: absolute;
+  bottom: 24px;
+  left: var(--program-legend-left, 16px);
+  z-index: 1120;
+  width: min(276px, calc(100vw - 32px));
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 28px -24px rgba(15, 23, 42, 0.58);
+  color: #0f172a;
+  overflow: hidden;
+  transition: left 0.22s ease, transform 0.18s ease, opacity 0.18s ease;
+}
+
+.program-map-legend-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.program-map-legend-count {
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  padding: 2px 7px;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.program-map-legend-body {
+  border-top: 1px solid rgba(226, 232, 240, 0.86);
+  padding: 9px 10px 10px;
+}
+
+.program-map-legend-active {
+  margin-bottom: 8px;
+  overflow: hidden;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .gis-marker-name-label {
+    max-width: 138px;
+    font-size: 10px;
+    padding: 5px 7px;
+  }
+
+  .gis-marker-label {
+    min-width: 148px;
+    max-width: calc(100vw - 40px);
+    padding: 7px 9px;
+  }
+
+  .gis-marker-label-title {
+    font-size: 11px;
+  }
+
+  .gis-marker-label-subtitle {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 767px) {
+  .program-map-legend {
+    left: 14px;
+    bottom: 18px;
+    width: auto;
+    max-width: calc(100vw - 28px);
+    border-radius: 8px;
+  }
+
+  .program-map-legend:not(.is-open) {
+    max-width: 190px;
+  }
+
+  .program-map-legend:not(.is-open) .program-map-legend-body {
+    display: none;
+  }
+
+  .program-map-legend.is-open {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+
+  .program-map-legend-toggle {
+    min-height: 40px;
+    padding: 9px 11px;
+  }
+}
+
+.leaflet-tooltip,
+.leaflet-tooltip.leaflet-tooltip-top,
+.leaflet-tooltip.leaflet-tooltip-bottom,
+.leaflet-tooltip.leaflet-tooltip-left,
+.leaflet-tooltip.leaflet-tooltip-right {
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  box-shadow: 0 18px 38px -24px rgba(15, 23, 42, 0.78) !important;
+  color: #0f172a !important;
+  padding: 0 !important;
+  backdrop-filter: blur(18px) saturate(1.14);
+  -webkit-backdrop-filter: blur(18px) saturate(1.14);
+}
+
+.leaflet-tooltip::before {
+  display: none !important;
+}
+
+.gis-floating-panel {
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.38) 100%);
+  box-shadow: 0 24px 72px -34px rgba(15, 23, 42, 0.36), 0 10px 24px -16px rgba(15, 23, 42, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(26px) saturate(1.18);
+  -webkit-backdrop-filter: blur(26px) saturate(1.18);
+}
+
+/* GIS Control Buttons - Adaptive Theme */
+.gis-control-button {
+  position: relative;
+  isolation: isolate;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.gis-control-button:hover {
+  transform: translateY(-1.5px) scale(1.03);
+  background: var(--surface-soft) !important;
+  color: var(--text) !important;
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.18);
+}
+
+.gis-control-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.gis-control-button > svg,
+.gis-control-button .control-button-icon {
+  color: var(--text) !important;
+  stroke: var(--text) !important;
+  opacity: 1 !important;
+  transform: scale(1);
+  transition: transform 0.16s ease;
+}
+
+.gis-control-button:hover > svg,
+.gis-control-button:hover .control-button-icon {
+  transform: scale(1.08);
+}
+
+.gis-control-button.is-active,
+.gis-control-button.is-presentation-active,
+.gis-control-button.is-draw-active {
+  background: linear-gradient(135deg, #7b1113 0%, #991b1b 100%) !important;
+  color: #ffffff !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  box-shadow: 0 4px 14px 0 rgba(123, 17, 19, 0.39);
+}
+
+.gis-control-button.is-active > svg,
+.gis-control-button.is-presentation-active > svg,
+.gis-control-button.is-draw-active > svg,
+.gis-control-button.is-active .control-button-icon,
+.gis-control-button.is-presentation-active .control-button-icon,
+.gis-control-button.is-draw-active .control-button-icon {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Floating Drawing Toolbar */
+.gis-drawing-toolbar {
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 14%);
+  padding: 5px;
+  overscroll-behavior: contain;
+}
+
+.gis-drawing-toolbar button {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.gis-drawing-toolbar button {
+  color: var(--text);
+}
+
+.gis-drawing-toolbar button:hover:not(:disabled) {
+  background: var(--surface-soft);
+  color: var(--primary);
+}
+
+.gis-drawing-toolbar button[data-active="true"] {
+  background: linear-gradient(142deg, #b91c1c 0%, #dc2626 58%, #ef4444 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px -6px rgba(185, 28, 28, 0.6);
+}
+
+.gis-drawing-toolbar button[data-active="true"] svg {
+  color: #ffffff !important;
+  stroke: currentColor;
+}
+
+.gis-toolbar-tooltip {
+  z-index: 1400;
+  max-width: min(220px, calc(100vw - 32px));
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 18px 34px -24px rgba(0, 0, 0, 0.5);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.1;
+  padding: 6px 8px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  white-space: nowrap;
+}
+
+.gis-scrollbar-hidden {
+  scrollbar-width: none;
+}
+
+.gis-scrollbar-hidden::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.gis-municipality-label {
+  display: grid;
+  gap: 1px;
+  min-width: 120px;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 18px 34px -26px rgba(15, 23, 42, 0.7);
+  color: #0f172a;
+  padding: 5px 10px;
+  text-align: center;
+  backdrop-filter: blur(14px);
+}
+
+.gis-municipality-label strong {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.gis-municipality-label span {
+  color: #64748b;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.leaflet-draw-tooltip {
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.82), rgba(30, 41, 59, 0.72)) !important;
+  box-shadow: 0 18px 34px -24px rgba(15, 23, 42, 0.92), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+  color: rgba(248, 250, 252, 0.96) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+  padding: 6px 8px !important;
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.leaflet-draw-guide-dash {
+  background-color: hsl(var(--primary-hsl)) !important;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
+  box-shadow: 0 24px 80px -38px rgba(15, 23, 42, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+  backdrop-filter: blur(24px) saturate(1.1);
+  -webkit-backdrop-filter: blur(24px) saturate(1.1);
+}
+
+/* Elevated Hover Effects */
+.hover-elevate {
+  transition: all 0.2s ease-out;
+}
+.hover-elevate:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+}
+.active-elevate-2:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.01);
+}
+
+/* Fix Radix Tabs Content Height */
+[data-radix-collection-item] {
+  height: 100%;
+}
+
+.TabsContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Force TabsContent to fill parent */
+[role="tabpanel"] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Presentation Mode Animations */
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Glassmorphism Effects */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Marker Animations */
+.marker-enter {
+  animation: slideInDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.marker-pop {
+  animation: fadeInScale 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Floating Widget Animation */
+.floating-widget {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Smooth Transitions */
+.smooth-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Presentation: root flex stability while map tab is immersive */
+.dashboard-presentation-root {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.presentation-stage:fullscreen,
+.presentation-stage:-webkit-full-screen {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+}
+
+.presentation-stage:fullscreen main,
+.presentation-stage:-webkit-full-screen main {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Presentation mode: reduce peripheral chrome on the map surface */
+.presenting-map .leaflet-control-zoom {
+  opacity: 0.45;
+}
+
+.presenting-map .leaflet-control-attribution {
+  opacity: 0.55;
+}
+
+/* Draw cursor only while a specific annotation tool is active (dock may be open without a tool). */
+.draw-tool-active .leaflet-container,
+.draw-tool-active .leaflet-container.leaflet-touch-zoom {
+  cursor: crosshair;
+  /* The browser decides gesture ownership at pointerdown. */
+  touch-action: none;
+}
+
+.drawing-mode .leaflet-container {
+  -webkit-touch-callout: none;
+}
+
+/* Presentation Mode Background Overlay */
+.presentation-overlay {
+  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* Smooth Zoom Animation */
+.smooth-zoom {
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Card Hover Effects for Presentation */
+.presentation-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.presentation-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3);
+}
+
+.admin-portal-shell {
+  background:
+    radial-gradient(circle at top left, rgba(123, 17, 19, 0.08), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--bg) 98%, white 2%), var(--surface-soft));
+  color: var(--text);
+}
+
+html[data-theme="dark"] .admin-portal-shell,
+html.dark .admin-portal-shell {
+  background:
+    radial-gradient(circle at top left, rgba(185, 28, 28, 0.14), transparent 40%),
+    linear-gradient(135deg, #070c18, #0b1120) !important;
+  color: var(--text);
+}
+
+.gis-app-shell .bg-white,
+.admin-portal-shell .bg-white,
+.admin-portal-shell .bg-white\/10,
+.admin-portal-shell .bg-white\/20,
+.admin-portal-shell .bg-white\/30,
+.admin-portal-shell .bg-white\/40,
+.admin-portal-shell .bg-white\/50,
+.admin-portal-shell .bg-white\/60,
+.admin-portal-shell .bg-white\/70,
+.admin-portal-shell .bg-white\/80,
+.admin-portal-shell .bg-white\/90,
+.gis-app-shell .bg-white\/60,
+.gis-app-shell .bg-white\/70 {
+  background-color: color-mix(in srgb, var(--surface) 86%, transparent) !important;
+}
+
+.gis-app-shell .bg-slate-50,
+.gis-app-shell .bg-slate-50\/50,
+.admin-portal-shell .bg-slate-50,
+.admin-portal-shell .bg-slate-50\/50,
+.admin-portal-shell .bg-slate-100 {
+  background-color: var(--surface-soft) !important;
+}
+
+.gis-app-shell .border-slate-200,
+.admin-portal-shell .border-slate-100,
+.admin-portal-shell .border-slate-200,
+.admin-portal-shell .border-slate-200\/80,
+.admin-portal-shell .border-white\/10,
+.admin-portal-shell .border-white\/20,
+.admin-portal-shell .border-white\/40,
+.admin-portal-shell .border-white\/50,
+.admin-portal-shell .border-white\/60,
+.admin-portal-shell .border-white\/70 {
+  border-color: var(--border) !important;
+}
+
+/* Global High-Tier Contrast Safeguards for Dark Mode */
+html[data-theme="dark"] .text-slate-950,
+html[data-theme="dark"] .text-slate-900,
+html[data-theme="dark"] .text-slate-800,
+html[data-theme="dark"] .text-slate-700,
+html.dark .text-slate-950,
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700,
+.admin-portal-shell .text-slate-900,
+.admin-portal-shell .text-slate-800,
+.admin-portal-shell .text-slate-700,
+.gis-app-shell .text-slate-900,
+.gis-app-shell .text-slate-800,
+.gis-app-shell .text-slate-700 {
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .text-slate-600,
+html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] .text-slate-400,
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-slate-400,
+.admin-portal-shell .text-slate-600,
+.admin-portal-shell .text-slate-500,
+.admin-portal-shell .text-slate-400,
+.gis-app-shell .text-slate-600,
+.gis-app-shell .text-slate-500,
+.gis-app-shell .text-slate-400 {
+  color: var(--muted) !important;
+}
+
+html[data-theme="dark"] .bg-slate-50,
+html[data-theme="dark"] .bg-slate-100,
+html.dark .bg-slate-50,
+html.dark .bg-slate-100 {
+  background-color: var(--surface-soft) !important;
+}
+
+html[data-theme="dark"] .border-slate-100,
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .border-slate-300,
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300 {
+  border-color: var(--border) !important;
+}
+
+.admin-portal-shell table {
+  color: var(--text);
+}
+
+.admin-portal-shell thead {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+}
+
+.admin-portal-shell tr:hover {
+  background-color: color-mix(in srgb, var(--surface-soft) 80%, transparent) !important;
+}
+
+[role="dialog"],
+[data-radix-popper-content-wrapper] {
+  color: var(--text);
+}
+
+.gis-floating-panel,
+.glass-panel {
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
+  box-shadow: 0 22px 56px -34px rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(14px) saturate(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+}
+
+html[data-theme="dark"] .leaflet-control-zoom a,
+html.dark .leaflet-control-zoom a,
+html[data-theme="dark"] .leaflet-control-attribution,
+html.dark .leaflet-control-attribution,
+html[data-theme="dark"] .gis-marker-name-label,
+html.dark .gis-marker-name-label,
+html[data-theme="dark"] .gis-marker-label,
+html.dark .gis-marker-label,
+html[data-theme="dark"] .gis-municipality-label,
+html.dark .gis-municipality-label,
+html[data-theme="dark"] .program-map-legend,
+html.dark .program-map-legend {
+  background: color-mix(in srgb, var(--surface) 90%, transparent) !important;
+  border-color: color-mix(in srgb, var(--border) 82%, transparent) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .gis-marker-label-subtitle,
+html.dark .gis-marker-label-subtitle,
+html[data-theme="dark"] .gis-municipality-label span,
+html.dark .gis-municipality-label span,
+html[data-theme="dark"] .program-map-legend-active,
+html.dark .program-map-legend-active {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .program-map-legend-body,
+html.dark .program-map-legend-body {
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+}
+
+/* ============================================================================
+   All-Devices Performance & Light-Feel Optimizations
+   - Eliminates heavy GPU backdrop-blur repaints over live maps on ALL devices
+     (laptops, integrated GPUs, tablets, and phones) for locked 60fps pan/zoom
+   - Isolates Leaflet marker layout/paint for smooth rendering
+   - Respects OS reduced-motion preferences
+   ============================================================================ */
+.gis-marker {
+  contain: layout style;
+}
+
+.backdrop-blur-xl,
+.backdrop-blur-2xl,
+.backdrop-blur-lg,
+.backdrop-blur-md {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.gis-marker-name-label,
+.gis-marker-label,
+.program-map-legend {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.gis-responsive-popover {
+  max-width: calc(100vw - 1.5rem);
+  max-width: min(calc(100vw - 1.5rem), var(--radix-popover-content-available-width, 100vw));
+  max-height: calc(100vh - 1.5rem);
+  max-height: min(calc(100dvh - 1.5rem), var(--radix-popover-content-available-height, 100vh));
+}
+
+.gis-account-menu-arrow {
+  fill: hsl(var(--popover));
+}
+
+html[data-liquid-glass] .gis-account-menu-arrow {
+  fill: var(--surface);
+}
+
+/* Theme surfaces share a static highlight. Only the app header samples its backdrop. */
+html[data-liquid-glass] {
+  --glass-tint: #e7eefb;
+  --glass-edge: rgb(255 255 255 / 86%);
+  --glass-highlight: rgb(255 255 255 / 90%);
+  --glass-shadow: rgb(47 65 104 / 19%);
+}
+
+html[data-liquid-glass] :is(.gis-app-shell, .admin-portal-shell) {
+  background-image: radial-gradient(ellipse at top right, var(--glass-tint), transparent 65%);
+}
+
+html[data-liquid-glass] .gis-liquid-glass {
+  color: var(--text);
+  border-color: var(--glass-edge);
+  background-color: var(--surface);
+  background-color: color-mix(in srgb, var(--surface) 84%, transparent);
+  background-image: linear-gradient(155deg, var(--glass-highlight), transparent 66%);
+  box-shadow: 0 8px 24px var(--glass-shadow), inset 0 1px 0 var(--glass-edge);
+}
+
+html[data-liquid-glass] .gis-liquid-glass-header {
+  border-bottom-color: #d5e0ee;
+  box-shadow: 0 4px 12px rgb(47 65 104 / 8%);
+  -webkit-backdrop-filter: blur(8px) saturate(1.18);
+  backdrop-filter: blur(8px) saturate(1.18);
+}
+
+html[data-liquid-glass] .gis-liquid-glass-map {
+  border-radius: 0 1.25rem 1.25rem 0;
+}
+
+html[data-liquid-glass] .gis-map-controls .gis-control-button {
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  html[data-liquid-glass] .gis-liquid-glass {
+    background-color: var(--surface);
+    background-image: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gis-marker,
+  .gis-marker-core,
+  .gis-marker-label,
+  .gis-marker-name-label {
+    animation: none !important;
+    transition: none !important;
+  }
+}

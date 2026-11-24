@@ -1,0 +1,75 @@
+{
+  "updatedAt": "2026-07-01T00:47:35.317Z",
+  "schools": [
+    {
+      "id": 68,
+      "name": "Biñan City Senior High School - San Antonio Campus",
+      "normalizedName": "binan city senior high school - san antonio campus",
+      "latitude": 14.3227,
+      "longitude": 121.0793,
+      "municipality": "Biñan",
+      "province": "Laguna",
+      "schoolType": "Senior High School",
+      "verified": true,
+      "status": "Verified",
+      "studentCount": 1,
+      "source": "5-School Test Dataset"
+    },
+    {
+      "id": 69,
+      "name": "Calamba City Senior High School",
+      "normalizedName": "calamba city senior high school",
+      "latitude": 14.2117,
+      "longitude": 121.1653,
+      "municipality": "Calamba",
+      "province": "Laguna",
+      "schoolType": "Senior High School",
+      "verified": true,
+      "status": "Verified",
+      "studentCount": 1,
+      "source": "5-School Test Dataset"
+    },
+    {
+      "id": 67,
+      "name": "Laguna Senior High School",
+      "normalizedName": "laguna senior high school",
+      "latitude": 14.2782,
+      "longitude": 121.4163,
+      "municipality": "Santa Cruz",
+      "province": "Laguna",
+      "schoolType": "Senior High School",
+      "verified": true,
+      "status": "Verified",
+      "studentCount": 1,
+      "source": "5-School Test Dataset"
+    },
+    {
+      "id": 70,
+      "name": "Pagsanjan Stand-Alone Senior High School",
+      "normalizedName": "pagsanjan stand-alone senior high school",
+      "latitude": 14.2738,
+      "longitude": 121.4558,
+      "municipality": "Pagsanjan",
+      "province": "Laguna",
+      "schoolType": "Senior High School",
+      "verified": true,
+      "status": "Verified",
+      "studentCount": 1,
+      "source": "5-School Test Dataset"
+    },
+    {
+      "id": 66,
+      "name": "Trimex Colleges",
+      "normalizedName": "trimex colleges",
+      "latitude": 14.339063,
+      "longitude": 121.085351,
+      "municipality": "Biñan",
+      "province": "Laguna",
+      "schoolType": "College",
+      "verified": true,
+      "status": "Verified",
+      "studentCount": 1,
+      "source": "5-School Test Dataset"
+    }
+  ]
+}
