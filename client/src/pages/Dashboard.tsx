@@ -1184,6 +1184,7 @@ export default function Dashboard() {
         onOpenChange={setBulkMergeOpen}
         schools={schools}
         duplicateIds={duplicateIds}
+        duplicateMasterMap={duplicateMasterMap}
         studentOriginsMap={studentOriginsMap}
         onGeolocate={geolocateSchool}
       />
