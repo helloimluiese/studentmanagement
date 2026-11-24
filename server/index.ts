@@ -13,6 +13,7 @@ import { testDatabaseConnection, initializeDatabase, getDb } from "./db";
 import { closeMysqlPool } from "./dbMysql";
 import { enterpriseCache } from "./cache";
 import { ensureGisSchema } from "./ensureGisSchema";
+import { syncLagunaBarangayDirectory } from "./syncLagunaBarangayDirectory";
 import { dataAccessLogs } from "@shared/schema";
 import { setupAuth } from "./auth";
 
@@ -161,6 +162,7 @@ process.on("uncaughtException", (err) => {
 
   await testDatabaseConnection();
   await ensureGisSchema();
+  await syncLagunaBarangayDirectory();
   setupAuth(app);
 
   // Default API cache policy: prevent shared CDNs/proxies from caching authenticated/PII responses.

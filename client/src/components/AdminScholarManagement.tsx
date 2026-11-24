@@ -18,9 +18,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { resolveScholarBarangay, BORDER_CATCHMENT_BARANGAYS } from "@shared/scholarBarangayResolver";
+import { isBarangayScholar, resolveScholarBarangay, BORDER_CATCHMENT_BARANGAYS } from "@shared/scholarBarangayResolver";
 
 interface BarangayScholarTally {
+  directoryId?: number;
   barangay: string;
   municipality: string;
   totalScholars: number;
@@ -46,96 +47,32 @@ export function AdminScholarManagement() {
   const [barangayFilter, setBarangayFilter] = useState("All");
   const [geolocatingBarangay, setGeolocatingBarangay] = useState<string | null>(null);
 
-  const saveBarangayMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/barangay-registry", data);
+  const geocodeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/barangay-registry/${id}/geocode`);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/barangay-registry"] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/barangay-registry"] }),
   });
 
   const handleGeolocate = async (tally: BarangayScholarTally) => {
+    if (!tally.directoryId) return;
+    setGeolocatingBarangay(`${tally.municipality}__${tally.barangay}`);
     try {
-      const queryKey = `${tally.municipality}__${tally.barangay}`;
-      setGeolocatingBarangay(queryKey);
-      
-      let lat: number | null = null;
-      let lng: number | null = null;
-
-      // 1. Try Client-side Google Geocoder if loaded
-      if (window.google?.maps?.Geocoder) {
-        try {
-          const geocoder = new window.google.maps.Geocoder();
-          const searchQuery = `${tally.barangay}, ${tally.municipality}, Laguna, Philippines`;
-          const response = await geocoder.geocode({ address: searchQuery, region: "ph" });
-          if (response.results && response.results.length > 0) {
-            lat = response.results[0].geometry.location.lat();
-            lng = response.results[0].geometry.location.lng();
-          }
-        } catch {
-          // Fall through to server-side geocoding
-        }
-      }
-
-      // 2. Fall back to Server-side Geocoder if client-side is unavailable or failed
-      if (!lat || !lng) {
-        const resp = await fetch("/api/geocode/school", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: `Barangay ${tally.barangay}`,
-            municipality: tally.municipality || "Laguna",
-          }),
-        });
-
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data.success && typeof data.latitude === "number" && typeof data.longitude === "number") {
-            lat = data.latitude;
-            lng = data.longitude;
-          }
-        }
-      }
-
-      if (!lat || !lng) {
-        throw new Error("Unable to locate coordinates for this barangay.");
-      }
-
-      await saveBarangayMutation.mutateAsync({
-        province: "Laguna",
-        municipality: tally.municipality,
-        barangayName: tally.barangay,
-        normalizedName: tally.barangay.toLowerCase(),
-        latitude: lat,
-        longitude: lng,
-      });
-
-      toast({ 
-        title: "Geolocation Success!", 
-        description: `Successfully mapped ${tally.barangay} to [${lat.toFixed(4)}, ${lng.toFixed(4)}]`
-      });
-
-    } catch (e: any) {
-      toast({ 
-        title: "Geolocation Failed", 
-        description: e.message || "Unable to locate barangay on the map.", 
-        variant: "destructive" 
+      await geocodeMutation.mutateAsync(tally.directoryId);
+      toast({ title: "Barangay geolocated", description: tally.barangay });
+    } catch (error) {
+      toast({
+        title: "Geolocation failed",
+        description: error instanceof Error ? error.message : "Unable to locate barangay on the map.",
+        variant: "destructive",
       });
     } finally {
       setGeolocatingBarangay(null);
     }
   };
 
-  // Only include students marked as scholars
-  const scholars = useMemo(() => {
-    return students.filter(s => {
-      if (!s.iskolarNiKap) return false;
-      const v = s.iskolarNiKap.toLowerCase().trim();
-      return v !== "" && v !== "no" && v !== "false";
-    });
-  }, [students]);
+  const scholars = useMemo(() => students.filter(student => isBarangayScholar(student.iskolarNiKap)), [students]);
 
   const scholarsWithLocation = useMemo(() => {
     return scholars.map(s => {
@@ -187,9 +124,10 @@ export function AdminScholarManagement() {
 
     // 1. Pre-populate map with all official database barangays
     for (const b of dbBarangays) {
-      if (!b.barangayName || !b.municipality) continue;
+      if (b.isActive === false || !b.barangayName || !b.municipality) continue;
       const key = `${b.municipality.toLowerCase()}__${b.barangayName.toLowerCase()}`;
       map.set(key, {
+        directoryId: b.id,
         barangay: b.barangayName,
         municipality: b.municipality,
         totalScholars: 0,

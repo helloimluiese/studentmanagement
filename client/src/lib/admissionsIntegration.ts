@@ -20,6 +20,7 @@ export type AdmissionsFieldKey =
   | "program"
   | "municipality"
   | "province"
+  | "address"
   | "yearLevel"
   | "status"
   | "contactNumber"
@@ -65,6 +66,7 @@ export interface AdmissionsPreviewRow extends Record<string, any> {
   issues: string[];
   fingerprint: string;
   matchedSchoolRegistry?: SchoolRegistry;
+  manuallySelectedSchoolId?: number;
   matchConfidence?: number;
   lat: number | null;
   lng: number | null;
@@ -183,7 +185,12 @@ export const SYSTEM_FIELDS: AdmissionsSystemField[] = [
   {
     key: "province",
     label: "Province",
-    aliases: ["province", "region", "state", "prov"],
+    aliases: ["province", "state", "prov"],
+  },
+  {
+    key: "address",
+    label: "Home Address",
+    aliases: ["address", "home address", "residential address", "permanent address"],
   },
   {
     key: "yearLevel",
@@ -362,6 +369,7 @@ export function buildAdmissionsPreview(
       issues,
       fingerprint,
       matchedSchoolRegistry: schoolMatch?.school,
+      manuallySelectedSchoolId: manualMatches[feederSchoolRegistry]?.id,
       matchConfidence: schoolMatch?.confidence,
       lat,
       lng,
@@ -381,6 +389,7 @@ export function buildGisSyncRecords(preview: AdmissionsPreviewRow[], mapping: Fi
       const schedule = stringValue(readMappedValue(row.sourceRecord, mapping, "schedule"));
       const iskolarNiKap = stringValue(readMappedValue(row.sourceRecord, mapping, "iskolarNiKap"));
       const requirements = stringValue(readMappedValue(row.sourceRecord, mapping, "requirements"));
+      const address = stringValue(readMappedValue(row.sourceRecord, mapping, "address"));
       const province = stringValue(readMappedValue(row.sourceRecord, mapping, "province"));
       const rawBarangay = stringValue(readMappedValue(row.sourceRecord, mapping, "barangay"));
       const isTransferee = /\b(transferee|transfer|college transferee)\b/i.test(studentType);
@@ -397,11 +406,14 @@ export function buildGisSyncRecords(preview: AdmissionsPreviewRow[], mapping: Fi
         course: row.program || null,
         strand: row.strand || null,
         lastSchoolName: row.feederSchoolRegistry,
+        schoolRegistryId: row.manuallySelectedSchoolId,
         lastSchoolType: lastSchoolRegistryType,
         studentType: studentType || null,
         municipality: row.municipality || "Laguna",
-        province: province || row.municipality || "Laguna",
+        province: province || null,
+        address: address || null,
         barangay: rawBarangay || row.barangay || null,
+        enrollmentStatus: stringValue(readMappedValue(row.sourceRecord, mapping, "status")) || null,
         yearLevel: stringValue(readMappedValue(row.sourceRecord, mapping, "yearLevel")) || null,
         contactNumber: contactNumber || null,
         schedule: schedule || null,
@@ -586,10 +598,15 @@ function flattenRecord(record: SourceRecord, prefix = "", output: SourceRecord =
 }
 
 function createFeederSchoolRegistryMatcher(schools: SchoolRegistry[]) {
-  const exactByNormalized = new Map(
-    schools.map((school) => [normalizeSchoolName(school.normalizedSchoolName || school.schoolName), school]),
-  );
-  const schoolFuse = new Fuse(schools, {
+  const candidates = schools.filter(school => school.isActive && !school.deletedAt && school.schoolType?.toLowerCase() !== "barangay");
+  const exactByNormalized = new Map<string, SchoolRegistry[]>();
+  for (const school of candidates) {
+    const key = normalizeSchoolName(school.schoolName);
+    const group = exactByNormalized.get(key) ?? [];
+    group.push(school);
+    exactByNormalized.set(key, group);
+  }
+  const schoolFuse = new Fuse(candidates, {
     keys: [
       { name: "schoolName", weight: 0.75 },
       { name: "normalizedSchoolName", weight: 0.2 },
@@ -605,13 +622,10 @@ function createFeederSchoolRegistryMatcher(schools: SchoolRegistry[]) {
     const normalized = normalizeSchoolName(feederSchoolRegistry);
     const exact = exactByNormalized.get(normalized);
 
-    if (exact) {
-      return { school: exact, confidence: 100 };
-    }
+    if (exact) return exact.length === 1 ? { school: exact[0], confidence: 100 } : null;
 
-    const [result] = schoolFuse.search(feederSchoolRegistry);
-
-    if (!result || (result.score ?? 1) > 0.34) return null;
+    const [result, runnerUp] = schoolFuse.search(feederSchoolRegistry, { limit: 2 });
+    if (!result || (result.score ?? 1) > 0.2 || (runnerUp?.score ?? 1) - (result.score ?? 1) < 0.05) return null;
 
     return {
       school: result.item,

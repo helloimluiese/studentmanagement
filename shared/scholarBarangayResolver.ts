@@ -1,3 +1,4 @@
+import { normalizeMunicipality } from "./schoolRegistry";
 import { cleanRawText, damerauLevenshtein, phPhoneticKey, stringSimilarity } from "./textNormalization";
 
 /**
@@ -20,6 +21,7 @@ export interface ResolvedBarangayLocation {
 export interface MinimalScholarRecord {
   barangay?: string | null;
   municipality?: string | null;
+  province?: string | null;
   iskolarNiKap?: string | null;
   address?: string | null;
 }
@@ -43,19 +45,7 @@ export const BORDER_CATCHMENT_BARANGAYS = [
   },
 ];
 
-const PRIORITY_CITIES = [
-  "biñan",
-  "binan",
-  "santa rosa",
-  "sta rosa",
-  "san pedro",
-  "carmona",
-  "cabuyao",
-  "calamba",
-];
-
 interface PreparedBarangay {
-  raw: any;
   barangayName: string;
   municipality: string;
   province: string;
@@ -66,15 +56,20 @@ interface PreparedBarangay {
   padded: string;
   phon: string;
   wordCount: number;
-  prio: number;
+  locality: string;
 }
 
 interface BarangayIndex {
   prepared: PreparedBarangay[];
+  localities: Set<string>;
   resultCache: Map<string, ResolvedBarangayLocation | null>;
 }
 
 const indexCache = new WeakMap<any[], BarangayIndex>();
+
+export function isBarangayScholar(value: string | null | undefined): boolean {
+  return Boolean(value?.trim() && !/^(no|false|0|null|undefined|none|n\/?a)$/i.test(value.trim()));
+}
 
 export function cleanBarangayText(str: string): string {
   if (!str) return "";
@@ -93,27 +88,33 @@ export function cleanBarangayText(str: string): string {
     .trim();
 }
 
+export function canonicalBarangayName(name: string, municipality: string): string {
+  const barangay = cleanBarangayText(name);
+  const locality = normalizeMunicipality(municipality);
+  if (locality === "liliw" && barangay === "cabuyao") return "cabuyew";
+  if (locality === "santa rosa" && barangay === "pook") return "pooc";
+  return barangay;
+}
+
 function getOrBuildIndex(dbBarangays: any[]): BarangayIndex {
   const existing = indexCache.get(dbBarangays);
   if (existing) return existing;
 
   const allBarangays = [...dbBarangays];
   for (const b of BORDER_CATCHMENT_BARANGAYS) {
-    if (!allBarangays.some((ex) => ex.barangayName?.toLowerCase() === b.barangayName.toLowerCase())) {
+    if (!allBarangays.some((ex) => ex.barangayName?.toLowerCase() === b.barangayName.toLowerCase() && normalizeMunicipality(ex.municipality) === normalizeMunicipality(b.municipality))) {
       allBarangays.push(b);
     }
   }
 
   const prepared: PreparedBarangay[] = [];
   for (const b of allBarangays) {
-    if (!b?.barangayName) continue;
+    if (!b?.barangayName || b.isActive === false) continue;
     const clean = cleanBarangayText(b.barangayName);
     if (clean.length < 3) continue;
     const mun = b.municipality || "Laguna";
     const munLower = mun.toLowerCase();
-    const prio = PRIORITY_CITIES.some((c) => munLower.includes(c)) ? 1 : 0;
     prepared.push({
-      raw: b,
       barangayName: b.barangayName,
       municipality: mun,
       province: b.province || "Laguna",
@@ -124,17 +125,15 @@ function getOrBuildIndex(dbBarangays: any[]): BarangayIndex {
       padded: ` ${clean} `,
       phon: phPhoneticKey(clean),
       wordCount: clean.split(" ").length,
-      prio,
+      locality: normalizeMunicipality(mun),
     });
   }
 
-  // Sort once: Priority cities first, then longer barangay names first
-  prepared.sort((a, b) => {
-    if (a.prio !== b.prio) return b.prio - a.prio;
-    return b.barangayName.length - a.barangayName.length;
-  });
-
-  const idx: BarangayIndex = { prepared, resultCache: new Map() };
+  const idx = {
+    prepared,
+    localities: new Set(prepared.map(barangay => barangay.locality)),
+    resultCache: new Map<string, ResolvedBarangayLocation | null>(),
+  };
   indexCache.set(dbBarangays, idx);
   return idx;
 }
@@ -143,47 +142,62 @@ export function resolveScholarBarangay(
   student: MinimalScholarRecord,
   dbBarangays: any[] = [],
 ): ResolvedBarangayLocation | null {
-  const rawTokens = [
-    student.barangay,
-    student.municipality,
-    student.iskolarNiKap,
-    student.address,
-  ].filter(Boolean) as string[];
-
-  if (rawTokens.length === 0) return null;
+  const location = [student.barangay, student.address, student.iskolarNiKap]
+    .map(value => cleanBarangayText(value ?? ""))
+    .filter(value => value && !/^(yes|no|true|false|none|null|undefined|n a|[01])$/.test(value));
+  if (!location.length) return null;
 
   const index = getOrBuildIndex(dbBarangays);
-  const cacheKey = rawTokens.join("|");
-  if (index.resultCache.has(cacheKey)) {
-    return index.resultCache.get(cacheKey) ?? null;
+  const cacheKey = JSON.stringify([student.municipality, student.province, student.barangay, student.address, student.iskolarNiKap]);
+  if (index.resultCache.has(cacheKey)) return index.resultCache.get(cacheKey) ?? null;
+
+  const remember = (barangay?: PreparedBarangay) => {
+    const result = barangay ? {
+      barangayName: barangay.barangayName,
+      municipality: barangay.municipality,
+      province: barangay.province,
+      latitude: barangay.latitude,
+      longitude: barangay.longitude,
+      key: barangay.key,
+    } : null;
+    index.resultCache.set(cacheKey, result);
+    return result;
+  };
+
+  let locality = normalizeMunicipality(student.municipality);
+  if (locality === "laguna") locality = "";
+  if (!locality && student.address) {
+    const addressSegments = student.address.split(",").map(normalizeMunicipality);
+    const address = ` ${normalizeMunicipality(student.address)} `;
+    const localities = Array.from(index.localities);
+    const named = localities.filter(name => addressSegments.includes(name));
+    const mentioned = named.length ? named : localities
+      .filter(name => name !== "bay" && name.length > 3 && address.endsWith(` ${name} `));
+    if (mentioned.length === 1) locality = mentioned[0];
   }
 
-  const cleanedCombined = cleanBarangayText(rawTokens.join(" "));
-  const combinedPadded = ` ${cleanedCombined} `;
+  const province = cleanBarangayText(student.province ?? "");
+  const candidates = index.prepared.filter(barangay =>
+    (!locality || barangay.locality === locality) &&
+    (!province || cleanBarangayText(barangay.province) === province));
+  if (!candidates.length) return remember();
 
-  // Tier 1: O(N) fast exact boundary match using pre-cleaned strings
-  for (const b of index.prepared) {
-    if (combinedPadded.includes(b.padded)) {
-      const resolved: ResolvedBarangayLocation = {
-        barangayName: b.barangayName,
-        municipality: b.municipality,
-        province: b.province,
-        latitude: b.latitude,
-        longitude: b.longitude,
-        key: b.key,
-      };
-      index.resultCache.set(cacheKey, resolved);
-      return resolved;
-    }
+  const explicitBarangay = canonicalBarangayName(student.barangay ?? "", locality);
+  const inputs = explicitBarangay ? [explicitBarangay] : location.map(text => {
+    return locality && text.endsWith(` ${locality}`) ? text.slice(0, -locality.length).trim() : text;
+  });
+  for (const input of inputs) {
+    const padded = ` ${input} `;
+    const exact = candidates.filter(barangay => explicitBarangay
+      ? input === barangay.clean || input.replace(/^barangay /, "") === barangay.clean
+      : padded.includes(barangay.padded));
+    const strongest = exact.filter(barangay => !exact.some(other =>
+      other.clean !== barangay.clean && other.padded.includes(barangay.padded)));
+    const places = new Map(strongest.map(barangay => [barangay.key, barangay]));
+    if (places.size) return remember(places.size === 1 ? places.values().next().value : undefined);
   }
 
-  // Tier 2: Typo-tolerant & Filipino phonetic fuzzy match over word n-grams
-  const words = cleanedCombined.split(" ").filter((w) => w.length >= 2 && w !== "barangay");
-  if (words.length === 0) {
-    index.resultCache.set(cacheKey, null);
-    return null;
-  }
-
+  const words = inputs.join(" ").split(" ").filter(word => word.length >= 2 && word !== "barangay");
   const ngrams: Array<{ text: string; phon: string; wordCount: number }> = [];
   for (let i = 0; i < words.length; i++) {
     const w1 = words[i];
@@ -198,9 +212,9 @@ export function resolveScholarBarangay(
     }
   }
 
-  let bestMatch: { barangay: PreparedBarangay; score: number } | null = null;
+  const scores = new Map<string, { barangay: PreparedBarangay; score: number }>();
 
-  for (const b of index.prepared) {
+  for (const b of candidates) {
     if (b.clean.length < 4) continue;
     const allowedMaxEdits = b.clean.length <= 6 ? 1 : 2;
 
@@ -220,25 +234,13 @@ export function resolveScholarBarangay(
 
       const isSafeMatch = (dist <= allowedMaxEdits && effectiveScore >= 0.8) || effectiveScore >= 0.88;
       if (isSafeMatch) {
-        const scoreWithPrio = effectiveScore + b.prio * 0.03;
-        if (!bestMatch || scoreWithPrio > bestMatch.score) {
-          bestMatch = { barangay: b, score: scoreWithPrio };
+        if (effectiveScore > (scores.get(b.key)?.score ?? 0)) {
+          scores.set(b.key, { barangay: b, score: effectiveScore });
         }
       }
     }
   }
 
-  const resolved: ResolvedBarangayLocation | null = bestMatch
-    ? {
-        barangayName: bestMatch.barangay.barangayName,
-        municipality: bestMatch.barangay.municipality,
-        province: bestMatch.barangay.province,
-        latitude: bestMatch.barangay.latitude,
-        longitude: bestMatch.barangay.longitude,
-        key: bestMatch.barangay.key,
-      }
-    : null;
-
-  index.resultCache.set(cacheKey, resolved);
-  return resolved;
+  const [best, runnerUp] = Array.from(scores.values()).sort((a, b) => b.score - a.score);
+  return remember(best && best.score - (runnerUp?.score ?? 0) >= 0.05 ? best.barangay : undefined);
 }

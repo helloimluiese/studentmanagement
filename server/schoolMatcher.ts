@@ -1,10 +1,9 @@
 import Fuse from "fuse.js";
 import { normalizeSchoolName } from "@shared/schoolRegistry";
 import { cleanRawText, computeTypoSimilarity } from "@shared/textNormalization";
-import { type SchoolRegistry, type SchoolAlias, schoolAliases, schoolMatchHistory } from "@shared/schema";
+import { type SchoolRegistry, type SchoolAlias, schoolMatchHistory } from "@shared/schema";
 import { getDb } from "./db";
-import { sql, eq } from "drizzle-orm";
-import * as turf from "@turf/turf";
+import { eq } from "drizzle-orm";
 
 export type MatchResult = {
   status: "matched" | "unmatched" | "suggested";
@@ -16,24 +15,22 @@ export type MatchResult = {
 
 export class SchoolMatchingEngine {
   private registry: SchoolRegistry[];
-  private exactMap: Map<string, SchoolRegistry>;
-  private normalizedMap: Map<string, SchoolRegistry>;
+  private normalizedMap: Map<string, SchoolRegistry[]>;
   private aliasMap: Map<string, SchoolRegistry>;
   private acronymMap: Map<string, SchoolRegistry[]>;
   private fuse: Fuse<SchoolRegistry>;
-  private aliases: SchoolAlias[];
 
   constructor(schools: SchoolRegistry[], aliases: SchoolAlias[]) {
     this.registry = schools;
-    this.aliases = aliases;
-    this.exactMap = new Map();
     this.normalizedMap = new Map();
     this.aliasMap = new Map();
     this.acronymMap = new Map();
 
     for (const school of schools) {
-      this.exactMap.set(school.schoolName.toLowerCase(), school);
-      this.normalizedMap.set(normalizeSchoolName(school.normalizedSchoolName || school.schoolName), school);
+      const key = normalizeSchoolName(school.schoolName);
+      const candidates = this.normalizedMap.get(key) ?? [];
+      candidates.push(school);
+      this.normalizedMap.set(key, candidates);
       
       const acronyms = this.getAcronyms(school.schoolName, school.municipality);
       for (const acronym of acronyms) {
@@ -47,8 +44,9 @@ export class SchoolMatchingEngine {
       }
     }
 
+    const schoolsById = new Map(schools.map(school => [school.id, school]));
     for (const alias of aliases) {
-      const school = this.exactMap.get(alias.schoolRegistryId.toString()) || schools.find(s => s.id === alias.schoolRegistryId);
+      const school = schoolsById.get(alias.schoolRegistryId);
       if (school) {
         this.aliasMap.set(alias.normalizedAlias, school);
       }
@@ -63,6 +61,22 @@ export class SchoolMatchingEngine {
       includeScore: true,
       minMatchCharLength: 3,
     });
+  }
+
+  private matchName(rawName: string): MatchResult | undefined {
+    const normalized = normalizeSchoolName(rawName);
+    if (!normalized) return;
+    const candidates = this.normalizedMap.get(normalized) ?? [];
+    if (candidates.length > 1) {
+      return { status: "suggested", school: null, suggestions: candidates };
+    }
+    const [school] = candidates;
+    if (school) {
+      const exact = school.schoolName.toLowerCase() === rawName.toLowerCase();
+      return { status: "matched", school, matchType: exact ? "exact" : "normalized", confidence: exact ? 100 : 95 };
+    }
+    const alias = this.aliasMap.get(normalized);
+    if (alias) return { status: "matched", school: alias, matchType: "alias", confidence: 95 };
   }
 
   /**
@@ -96,19 +110,8 @@ export class SchoolMatchingEngine {
   public async matchAsync(rawName: string, metadata?: { address?: string; municipality?: string; province?: string; program?: string }): Promise<MatchResult> {
     if (!rawName) return { status: "unmatched", school: null };
 
-    // 1. Exact Match (100%)
-    const exact = this.exactMap.get(rawName.toLowerCase());
-    if (exact) return { status: "matched", school: exact, matchType: "exact", confidence: 100 };
-
-    const normalized = normalizeSchoolName(rawName);
-
-    // 2. Alias Match (95%)
-    const alias = this.aliasMap.get(normalized);
-    if (alias) return { status: "matched", school: alias, matchType: "alias", confidence: 95 };
-
-    // 3. Normalized Match (95%)
-    const normMatch = this.normalizedMap.get(normalized);
-    if (normMatch) return { status: "matched", school: normMatch, matchType: "normalized", confidence: 95 };
+    const nameMatch = this.matchName(rawName);
+    if (nameMatch) return nameMatch;
 
     // 4. Acronym Match (70-90%)
     // Allow inputs like "CGC Binan" or "CGC - Binan"
@@ -195,89 +198,13 @@ export class SchoolMatchingEngine {
       }
     }
 
-    // Drizzle raw execute in Postgres returns { rows: any[] }
-    // pg_trgm query removed for MySQL compatibility. Using fuse.js memory search exclusively.
-    let dbTopSim = 0;
-    let dbTopSchool: SchoolRegistry | null = null;
-
-    // Compare with fuse.js memory search AND hybrid Damerau-Levenshtein + Filipino phonetic similarity
-    const cleanedQuery = cleanRawText(rawName);
-    const fuzzyResults = this.fuse.search(cleanedQuery || rawName);
-    let fuseTopSim = 0;
-    let fuseTopSchool: SchoolRegistry | null = null;
-
-    if (fuzzyResults.length > 0) {
-      fuseTopSim = 1 - (fuzzyResults[0].score ?? 1);
-      fuseTopSchool = fuzzyResults[0].item;
+    const ranked = this.rankFuzzy(rawName);
+    const [best, runnerUp] = ranked;
+    if (best && best.score >= 0.8 && best.score - (runnerUp?.score ?? 0) >= 0.05) {
+      return { status: "matched", school: best.school, matchType: "fuzzy", confidence: Math.round(best.score * 100) };
     }
-
-    // Hybrid typo/phonetic scan over registry for transposed/phonetic typos Fuse can miss
-    let typoTopSim = 0;
-    let typoTopSchool: SchoolRegistry | null = null;
-    if (normalized.length >= 4) {
-      for (const candidate of this.registry) {
-        const candNorm = normalizeSchoolName(candidate.normalizedSchoolName || candidate.schoolName);
-        if (!candNorm) continue;
-        const normSim = computeTypoSimilarity(normalized, candNorm);
-        const fullSim = computeTypoSimilarity(cleanedQuery || rawName, candidate.schoolName);
-        const sim = Math.max(normSim, fullSim);
-        if (sim > typoTopSim) {
-          typoTopSim = sim;
-          typoTopSchool = candidate;
-        }
-      }
-    }
-
-    const bestSim = Math.max(dbTopSim, fuseTopSim, typoTopSim);
-    const bestSchool =
-      bestSim === typoTopSim && typoTopSchool
-        ? typoTopSchool
-        : bestSim === dbTopSim && dbTopSchool
-          ? dbTopSchool
-          : fuseTopSchool;
-    
-    // We lower the threshold slightly to 0.75 because real-world messy data rarely hits 0.8 perfectly without exact substring match
-    if (bestSchool && bestSim >= 0.75) {
-      // Highly confident fuzzy match
-      const confidence = Math.round(bestSim * 100);
-      return { status: "matched", school: bestSchool, matchType: "fuzzy", confidence };
-    }
-
-    // Fallback: Geospatial & Metadata matching
-    const addressStr = [metadata?.address, metadata?.municipality].filter(Boolean).join(" ").toLowerCase();
-
-    if (addressStr) {
-      // 5. Municipality Match Filter (Boost 20%)
-      const muniSchools = this.registry.filter(s => 
-        s.municipality && addressStr.includes(s.municipality.toLowerCase())
-      );
-      if (muniSchools.length > 0 && bestSchool && muniSchools.some(s => s.id === bestSchool.id) && bestSim > 0.6) {
-         return { status: "matched", school: bestSchool, matchType: "municipality", confidence: Math.round((bestSim + 0.2) * 100) };
-      }
-    }
-
-    // AI Suggestions (Top 3 fuzzy if below threshold)
-    if (fuzzyResults.length > 0) {
-      // Suggestions from fuse
-      const fuseSuggestions = fuzzyResults.slice(0, 3).map(r => r.item);
-      const suggestions = Array.from(new Set([...fuseSuggestions])).slice(0, 3);
-      
-      // Address Resolution
-      if (addressStr && suggestions.length > 1) {
-        const resolved = suggestions.filter(s => {
-          const muni = s.municipality?.toLowerCase();
-          if (muni && addressStr.includes(muni)) return true;
-          const nameLower = s.schoolName.toLowerCase();
-          if (nameLower.split(/[-,\s]+/).some(word => word.length > 3 && addressStr.includes(word) && !rawName.toLowerCase().includes(word))) return true;
-          return false;
-        });
-
-        if (resolved.length === 1) {
-          return { status: "matched", school: resolved[0], matchType: "address", confidence: 95 };
-        }
-      }
-
-      return { status: "suggested", school: null, suggestions, confidence: Math.round(fuseTopSim * 100) };
+    if (best) {
+      return { status: "suggested", school: null, suggestions: ranked.slice(0, 3).map(result => result.school) };
     }
 
     // 11. Unmatched
@@ -286,19 +213,9 @@ export class SchoolMatchingEngine {
 
   // Legacy synchronous wrapper for existing code, degrades pg_trgm to just fuse.js
   public match(rawName: string): MatchResult {
-    // 1. Exact Match
-    const exact = this.exactMap.get(rawName.toLowerCase());
-    if (exact) return { status: "matched", school: exact, matchType: "exact", confidence: 100 };
-
-    const normalized = normalizeSchoolName(rawName);
-
-    // 2. Alias Match
-    const alias = this.aliasMap.get(normalized);
-    if (alias) return { status: "matched", school: alias, matchType: "alias", confidence: 95 };
-
-    // 3. Normalized Match
-    const normMatch = this.normalizedMap.get(normalized);
-    if (normMatch) return { status: "matched", school: normMatch, matchType: "normalized", confidence: 95 };
+    if (!rawName.trim()) return { status: "unmatched", school: null };
+    const nameMatch = this.matchName(rawName);
+    if (nameMatch) return nameMatch;
 
     // 4. Acronym Match (70-90%)
     const parts = rawName.split(/[\s-]+/);
@@ -345,36 +262,29 @@ export class SchoolMatchingEngine {
       }
     }
 
-    // 4. Hybrid Fuzzy + Typo/Phonetic Match
-    const cleanedQuery = cleanRawText(rawName);
-    const fuzzyResults = this.fuse.search(cleanedQuery || rawName);
-    let bestSchool: SchoolRegistry | null = fuzzyResults[0]?.item ?? null;
-    let bestScore = fuzzyResults[0] ? 1 - (fuzzyResults[0].score ?? 1) : 0;
-
-    if (normalized.length >= 4) {
-      for (const candidate of this.registry) {
-        const candNorm = normalizeSchoolName(candidate.normalizedSchoolName || candidate.schoolName);
-        if (!candNorm) continue;
-        const normSim = computeTypoSimilarity(normalized, candNorm);
-        const fullSim = computeTypoSimilarity(cleanedQuery || rawName, candidate.schoolName);
-        const sim = Math.max(normSim, fullSim);
-        if (sim > bestScore) {
-          bestScore = sim;
-          bestSchool = candidate;
-        }
-      }
+    const ranked = this.rankFuzzy(rawName);
+    const [best, runnerUp] = ranked;
+    if (best && best.score >= 0.8 && best.score - (runnerUp?.score ?? 0) >= 0.05) {
+      return { status: "matched", school: best.school, matchType: "fuzzy", confidence: Math.round(best.score * 100) };
     }
-
-    if (bestSchool && Math.round(bestScore * 100) >= 80) {
-      return { status: "matched", school: bestSchool, matchType: "fuzzy", confidence: Math.round(bestScore * 100) };
-    }
-    
-    if (fuzzyResults.length > 0) {
-      const suggestions = fuzzyResults.slice(0, 3).map(r => r.item);
-      return { status: "suggested", school: null, suggestions };
-    }
-
+    if (best) return { status: "suggested", school: null, suggestions: ranked.slice(0, 3).map(result => result.school) };
     return { status: "unmatched", school: null };
   }
-}
 
+  private rankFuzzy(rawName: string): Array<{ school: SchoolRegistry; score: number }> {
+    const cleanedQuery = cleanRawText(rawName);
+    const normalized = normalizeSchoolName(rawName);
+    const scores = new Map(this.fuse.search(cleanedQuery || rawName)
+      .map(result => [result.item.id, 1 - (result.score ?? 1)]));
+    return this.registry.map(school => {
+      let score = scores.get(school.id) ?? 0;
+      if (normalized.length >= 4) {
+        score = Math.max(score,
+          computeTypoSimilarity(normalized, normalizeSchoolName(school.schoolName)),
+          computeTypoSimilarity(cleanedQuery || rawName, school.schoolName),
+        );
+      }
+      return { school, score };
+    }).filter(result => result.score >= 0.6).sort((a, b) => b.score - a.score);
+  }
+}

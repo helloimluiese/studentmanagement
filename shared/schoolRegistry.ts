@@ -1,5 +1,14 @@
 import { cleanRawText } from "./textNormalization";
 
+export function normalizeMunicipality(name: string | null | undefined): string {
+  return cleanRawText(name || "").toLowerCase()
+    .replace(/\bcity of\b|\bcity\b|\bmunicipality of\b/g, "")
+    .replace(/\bsta\b/g, "santa")
+    .replace(/\bsto\b/g, "santo")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export const SCHOOL_STATUSES = [
   "Verified",
   "Auto-Located",

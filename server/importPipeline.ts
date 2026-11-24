@@ -1,7 +1,8 @@
 import { getDb } from "./db";
-import { studentsProcessed, schoolAliases } from "@shared/schema";
-import { SchoolMatchingEngine } from "./schoolMatcher";
-import { storage } from "./storage";
+import { barangayRegistry, studentsProcessed } from "@shared/schema";
+import { loadSchoolMatcher } from "./geocodeLookup";
+import { hasCoordinates } from "@shared/schoolRegistry";
+import { isBarangayScholar, resolveScholarBarangay } from "@shared/scholarBarangayResolver";
 import { eq } from "drizzle-orm";
 
 interface ImportProgress {
@@ -50,9 +51,10 @@ export async function processBatch(records: any[]) {
   if (!currentProgress.isProcessing) return;
 
   const db = getDb();
-  const allSchools = await storage.listSchoolRegistry();
-  const aliases = await db.select().from(schoolAliases);
-  const matcher = new SchoolMatchingEngine(allSchools, aliases);
+  const [matcher, barangays] = await Promise.all([
+    loadSchoolMatcher(),
+    db.select().from(barangayRegistry),
+  ]);
 
   for (const record of records) {
     try {
@@ -72,12 +74,10 @@ export async function processBatch(records: any[]) {
         record.admissionType = "Freshman";
       }
 
-      const matchResult = await matcher.matchAsync(record.previousSchool || "", {
-        address: record.address,
-        municipality: record.municipality,
-        province: record.province,
-        program: record.program
-      });
+      const matchResult = await matcher.matchAsync(record.previousSchool || "");
+      const scholarLocation = isBarangayScholar(record.scholarship)
+        ? resolveScholarBarangay({ ...record, iskolarNiKap: record.scholarship }, barangays)
+        : null;
       
       const status = matchResult.status === "matched" ? "Matched" : 
                     matchResult.status === "suggested" ? "Unmatched" : "Unmatched";
@@ -100,9 +100,11 @@ export async function processBatch(records: any[]) {
         admissionType: record.admissionType,
         course: record.program || null,
         iskolarNiKap: record.scholarship || null,
-        municipality: record.municipality || "Laguna",
+        municipality: scholarLocation?.municipality ?? (record.municipality || "Laguna"),
+        province: scholarLocation?.province ?? (record.province || null),
+        barangay: scholarLocation?.barangayName ?? (record.barangay || null),
         importedSource: record.importSource || "Google Sheets Auto-Sync",
-        mappingStatus: status === "Matched" ? "mapped" : "needs_review",
+        mappingStatus: matchResult.school && hasCoordinates(matchResult.school) ? "mapped" : "needs_review",
         schoolRegistryId: matchResult.school?.id || null,
         enrollmentStatus: record.enrollmentStatus || "Active",
       };

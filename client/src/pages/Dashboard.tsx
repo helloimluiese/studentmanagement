@@ -71,7 +71,8 @@ import { useDeleteSchool, useSchools, useUpdateSchool } from "@/hooks/use-school
 import { useGisOverview, useImportLogs, useProcessedStudents } from "@/hooks/use-gis-admin";
 import { useCreateReferral, useDeleteReferral, useReferrals, useUpdateReferral } from "@/hooks/use-referrals";
 import { useToast } from "@/hooks/use-toast";
-import { resolveScholarBarangay, BORDER_CATCHMENT_BARANGAYS } from "@shared/scholarBarangayResolver";
+import { requestGeocodeSchoolOrThrow } from "@/lib/geocodeSchoolApi";
+import { isBarangayScholar, resolveScholarBarangay, BORDER_CATCHMENT_BARANGAYS } from "@shared/scholarBarangayResolver";
 
 import { cn } from "@/lib/utils";
 import { exitFullscreenSafe, getFullscreenElement, requestFullscreenOnElement } from "@/lib/presentationFullscreen";
@@ -272,189 +273,10 @@ export default function Dashboard() {
     }
   }, [mainTab]);
 
-const LAGUNA_MUNICIPALITY_COORDS: Record<string, { lat: number; lng: number }> = {
-  "biñan": { lat: 14.3386, lng: 121.0805 },
-  "binan": { lat: 14.3386, lng: 121.0805 },
-  "santa rosa": { lat: 14.3167, lng: 121.1167 },
-  "sta rosa": { lat: 14.3167, lng: 121.1167 },
-  "sta. rosa": { lat: 14.3167, lng: 121.1167 },
-  "cabuyao": { lat: 14.2783, lng: 121.1250 },
-  "calamba": { lat: 14.2117, lng: 121.1653 },
-  "san pedro": { lat: 14.3583, lng: 121.0583 },
-  "los baños": { lat: 14.1678, lng: 121.2431 },
-  "los banos": { lat: 14.1678, lng: 121.2431 },
-  "san pablo": { lat: 14.0683, lng: 121.3253 },
-  "santa cruz": { lat: 14.2783, lng: 121.4150 },
-  "sta cruz": { lat: 14.2783, lng: 121.4150 },
-  "sta. cruz": { lat: 14.2783, lng: 121.4150 },
-  "bay": { lat: 14.1833, lng: 121.2833 },
-  "victoria": { lat: 14.2333, lng: 121.3333 },
-  "pila": { lat: 14.2333, lng: 121.3667 },
-  "pagsanjan": { lat: 14.2736, lng: 121.4550 },
-  "cavinti": { lat: 14.2467, lng: 121.5083 },
-  "lumban": { lat: 14.3000, lng: 121.4583 },
-  "paete": { lat: 14.3644, lng: 121.5283 },
-  "pakil": { lat: 14.3814, lng: 121.4797 },
-  "pangil": { lat: 14.4033, lng: 121.4650 },
-  "siniloan": { lat: 14.4172, lng: 121.4489 },
-  "famy": { lat: 14.4389, lng: 121.4528 },
-  "mabitac": { lat: 14.4258, lng: 121.4250 },
-  "santa maria": { lat: 14.4700, lng: 121.4250 },
-  "sta maria": { lat: 14.4700, lng: 121.4250 },
-  "kalayaan": { lat: 14.3536, lng: 121.5647 },
-  "liliw": { lat: 14.1311, lng: 121.4361 },
-  "nagcarlan": { lat: 14.1389, lng: 121.4167 },
-  "majayjay": { lat: 14.1436, lng: 121.4561 },
-  "luisiana": { lat: 14.1833, lng: 121.5167 },
-  "magdalena": { lat: 14.2000, lng: 121.4278 },
-  "rizal": { lat: 14.1122, lng: 121.3961 },
-  "alaminos": { lat: 14.0667, lng: 121.2472 },
-};
-
-const BINAN_BARANGAYS: Record<string, { lat: number; lng: number }> = {
-  "biñan (poblacion)": { lat: 14.3386, lng: 121.0805 },
-  "poblacion": { lat: 14.3386, lng: 121.0805 },
-  "bungahan": { lat: 14.3119, lng: 121.0617 },
-  "canlalay": { lat: 14.3411, lng: 121.0886 },
-  "casile": { lat: 14.2881, lng: 121.0425 },
-  "de la paz": { lat: 14.3364, lng: 121.0922 },
-  "ganado": { lat: 14.3117, lng: 121.0786 },
-  "halang": { lat: 14.3131, lng: 121.0664 },
-  "kalamunding": { lat: 14.3411, lng: 121.0805 },
-  "langkiwa": { lat: 14.3039, lng: 121.0547 },
-  "loma": { lat: 14.3014, lng: 121.0583 },
-  "malaban": { lat: 14.3400, lng: 121.0978 },
-  "malamig": { lat: 14.2981, lng: 121.0600 },
-  "mamplasan": { lat: 14.3058, lng: 121.0714 },
-  "platero": { lat: 14.3217, lng: 121.0850 },
-  "san antonio": { lat: 14.3314, lng: 121.0805 },
-  "san francisco": { lat: 14.3144, lng: 121.0683 },
-  "san jose": { lat: 14.3331, lng: 121.0758 },
-  "san vicente": { lat: 14.3353, lng: 121.0825 },
-  "santo niño": { lat: 14.3319, lng: 121.0767 },
-  "sto niño": { lat: 14.3319, lng: 121.0767 },
-  "santo tomas": { lat: 14.3164, lng: 121.0792 },
-  "sto tomas": { lat: 14.3164, lng: 121.0792 },
-  "soro-soro": { lat: 14.3400, lng: 121.0700 },
-  "sorosoro": { lat: 14.3400, lng: 121.0700 },
-  "timbao": { lat: 14.3089, lng: 121.0608 },
-  "tubigan": { lat: 14.3200, lng: 121.0772 },
-  "zapote": { lat: 14.3283, lng: 121.0808 },
-};
-
-const SANTA_ROSA_BARANGAYS: Record<string, { lat: number; lng: number }> = {
-  "balibago": { lat: 14.2831, lng: 121.1008 },
-  "caingin": { lat: 14.3167, lng: 121.1167 },
-  "dita": { lat: 14.2697, lng: 121.1119 },
-  "don jose": { lat: 14.2547, lng: 121.0778 },
-  "kanluran": { lat: 14.3131, lng: 121.1147 },
-  "labas": { lat: 14.3094, lng: 121.1083 },
-  "macabling": { lat: 14.2964, lng: 121.1111 },
-  "malitlit": { lat: 14.2653, lng: 121.0894 },
-  "pooc": { lat: 14.3006, lng: 121.1217 },
-  "pulong santa cruz": { lat: 14.2883, lng: 121.0872 },
-  "pulong sta cruz": { lat: 14.2883, lng: 121.0872 },
-  "sinalhan": { lat: 14.3194, lng: 121.1214 },
-  "tagapo": { lat: 14.3108, lng: 121.1008 },
-};
-
-const LAGUNA_BARANGAY_COORDS: Record<string, Record<string, { lat: number; lng: number }>> = {
-  "biñan": BINAN_BARANGAYS,
-  "binan": BINAN_BARANGAYS,
-  "santa rosa": SANTA_ROSA_BARANGAYS,
-  "sta rosa": SANTA_ROSA_BARANGAYS,
-  "sta. rosa": SANTA_ROSA_BARANGAYS,
-};
-
-function getBarangayCoords(municipality: string, barangayName: string, dbBarangays: any[]) {
-  const munKey = municipality.trim().toLowerCase();
-  const brgyKey = barangayName.trim().toLowerCase();
-  
-  // 1. Check Database Registry First
-  const dbMatch = dbBarangays.find(b => 
-    b.municipality.toLowerCase() === munKey &&
-    b.barangayName.toLowerCase() === brgyKey
-  ) || dbBarangays.find(b => 
-    munKey.includes(b.municipality.toLowerCase()) && 
-    brgyKey.includes(b.barangayName.toLowerCase())
-  );
-
-  if (dbMatch && dbMatch.latitude && dbMatch.longitude) {
-    return { 
-      latitude: dbMatch.latitude, 
-      longitude: dbMatch.longitude,
-      cleanBarangay: dbMatch.barangayName,
-      cleanMunicipality: dbMatch.municipality
-    };
-  }
-
-  let mappedMunKey = munKey;
-  
-  // 2. Exact match for municipality
-  let base = LAGUNA_MUNICIPALITY_COORDS[munKey];
-  
-  // 2. Substring match for noisy data like "Langkiwa Binan Laguna"
-  if (!base) {
-    const match = Object.keys(LAGUNA_MUNICIPALITY_COORDS).find(k => munKey.includes(k));
-    if (match) {
-      base = LAGUNA_MUNICIPALITY_COORDS[match];
-      mappedMunKey = match;
-    }
-  }
-
-  // 3. Check for specific barangay exact coordinates
-  const brgyDict = LAGUNA_BARANGAY_COORDS[mappedMunKey];
-  if (brgyDict) {
-    const brgyKey = barangayName.trim().toLowerCase();
-    let exactBrgy = brgyDict[brgyKey];
-    
-    // Substring match for barangay if exact fails (e.g. "Brgy. Canlalay" -> "canlalay")
-    if (!exactBrgy) {
-      const bMatch = Object.keys(brgyDict).find(k => brgyKey.includes(k));
-      if (bMatch) exactBrgy = brgyDict[bMatch];
-    }
-    
-    if (exactBrgy) {
-      return {
-        latitude: exactBrgy.lat,
-        longitude: exactBrgy.lng,
-        cleanBarangay: Object.keys(brgyDict).find(k => brgyDict[k] === exactBrgy) || barangayName,
-        cleanMunicipality: mappedMunKey
-      };
-    }
-  }
-  
-  // 4. Fallback to an inland point in Laguna (near Bay) instead of the lake if no municipality found
-  if (!base) {
-    base = { lat: 14.18, lng: 121.28 };
-  }
-  
-  // 5. If no exact barangay coords, use deterministic jitter around municipality base
-  let hash = 0;
-  for (let i = 0; i < barangayName.length; i++) {
-    hash = (hash << 5) - hash + barangayName.charCodeAt(i);
-    hash |= 0;
-  }
-  
-  const offsetLat = (((Math.abs(hash) % 1000) / 1000) - 0.5) * 0.015;
-  const offsetLng = (((Math.abs(hash * 13) % 1000) / 1000) - 0.5) * 0.015;
-  
-  return {
-    latitude: Math.round((base.lat + offsetLat) * 100000) / 100000,
-    longitude: Math.round((base.lng + offsetLng) * 100000) / 100000,
-    cleanBarangay: barangayName,
-    cleanMunicipality: municipality
-  };
-}
-
   const programOptions = useMemo(() => getProgramOptions(processedStudents), [processedStudents, departments]);
   const programSchools = useMemo(() => {
     if (mapViewMode === "scholars") {
-      const scholars = processedStudents.filter(s => {
-        if (!s.iskolarNiKap) return false;
-        const v = s.iskolarNiKap.toLowerCase().trim();
-        return v !== "" && v !== "no" && v !== "false";
-      });
+      const scholars = processedStudents.filter(s => isBarangayScholar(s.iskolarNiKap));
 
       const brgyMap = new Map<string, any>();
       let virtualIdCounter = 900000;
@@ -469,7 +291,7 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
 
       // Initialize with all barangays so they are listed and available for pinning
       for (const b of allBarangays) {
-        if (!b.municipality || !b.barangayName) continue;
+        if (b.isActive === false || !b.municipality || !b.barangayName) continue;
         const key = `${b.municipality.toLowerCase()}__${b.barangayName.toLowerCase()}`;
         virtualIdCounter++;
         brgyMap.set(key, {
@@ -529,8 +351,8 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
       });
 
       for (const student of scholars) {
-        const resolved = resolveScholarBarangay(student, allBarangays);
-        const key = resolved ? resolved.key : unmappedKey;
+        const resolved = resolveScholarBarangay(student, dbBarangays);
+        const key = resolved?.latitude && resolved.longitude ? resolved.key : unmappedKey;
 
         const entry = brgyMap.get(key);
         if (entry) {
@@ -581,11 +403,7 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
   const filteredProcessedStudents = useMemo(() => {
     let baseStudents = processedStudents;
     if (mapViewMode === "scholars") {
-      baseStudents = processedStudents.filter(s => {
-        if (!s.iskolarNiKap) return false;
-        const v = s.iskolarNiKap.toLowerCase().trim();
-        return v !== "" && v !== "no" && v !== "false" && v !== "0" && v !== "null" && v !== "undefined" && v !== "none" && v !== "n/a";
-      });
+      baseStudents = processedStudents.filter(s => isBarangayScholar(s.iskolarNiKap));
     }
 
     if (!selectedMapSchoolId) return baseStudents;
@@ -595,7 +413,7 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
       if (brgy) {
         return baseStudents.filter(s => {
           const resolved = resolveScholarBarangay(s, dbBarangays);
-          if (resolved) {
+          if (resolved?.latitude && resolved.longitude) {
             return (
               resolved.barangayName.toLowerCase() === brgy.barangay.toLowerCase() &&
               resolved.municipality.toLowerCase() === brgy.municipality.toLowerCase()
@@ -760,98 +578,26 @@ function getBarangayCoords(municipality: string, barangayName: string, dbBaranga
 
   const geolocateSchool = async (school: SchoolRegistry) => {
     try {
-      let lat: number | null = null;
-      let lng: number | null = null;
-      let detectedMunicipality = school.municipality || "";
-      let detectedProvince = school.province || "Laguna";
-
-      // 1. Try Client-side Google Geocoder if loaded in window
-      if (window.google?.maps?.Geocoder) {
-        try {
-          const geocoder = new window.google.maps.Geocoder();
-          const primaryQuery = `${school.schoolName}, Philippines`;
-          let fallbackQuery = primaryQuery;
-
-          if (school.municipality) {
-            fallbackQuery = `${school.schoolName}, ${school.municipality}, Philippines`;
-          } else if (studentOriginsMap.has(school.id)) {
-            fallbackQuery = `${school.schoolName}, ${studentOriginsMap.get(school.id)}, Philippines`;
-          }
-
-          let res: any = null;
-          const isGeneric = (result: google.maps.GeocoderResult) => {
-            return result.types.includes("administrative_area_level_1") || 
-                   result.types.includes("administrative_area_level_2") || 
-                   result.types.includes("country") ||
-                   result.types.includes("locality");
-          };
-
-          const primaryResponse = await geocoder.geocode({ address: primaryQuery, region: "ph" }).catch(() => null);
-          if (primaryResponse?.results && primaryResponse.results.length > 0) {
-            const first = primaryResponse.results[0];
-            if (!isGeneric(first) || fallbackQuery === primaryQuery) {
-              res = first;
-            }
-          }
-
-          if (!res && fallbackQuery !== primaryQuery) {
-            const fallbackResponse = await geocoder.geocode({ address: fallbackQuery, region: "ph" }).catch(() => null);
-            if (fallbackResponse?.results && fallbackResponse.results.length > 0) {
-              res = fallbackResponse.results[0];
-            }
-          }
-
-          if (res) {
-            lat = res.geometry.location.lat();
-            lng = res.geometry.location.lng();
-            for (const comp of res.address_components) {
-              if (comp.types.includes("locality")) detectedMunicipality = comp.long_name;
-              if (comp.types.includes("administrative_area_level_2")) detectedProvince = comp.long_name;
-              if (!detectedProvince && comp.types.includes("administrative_area_level_1")) detectedProvince = comp.long_name;
-            }
-          }
-        } catch {
-          // Continue to server fallback
-        }
+      const result = await requestGeocodeSchoolOrThrow({
+        schoolName: school.schoolName,
+        municipality: school.municipality,
+      });
+      if (result.schoolId && result.schoolId !== school.id) {
+        throw new Error(`Directory match: ${result.displayName}. Review the school records before linking.`);
       }
 
-      // 2. Server-side Geocoding Fallback via /api/geocode/school
-      if (!lat || !lng) {
-        const resp = await fetch("/api/geocode/school", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: school.schoolName,
-            municipality: school.municipality || studentOriginsMap.get(school.id) || "Laguna",
-          }),
-        });
-
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data.success && typeof data.latitude === "number" && typeof data.longitude === "number") {
-            lat = data.latitude;
-            lng = data.longitude;
-          }
-        }
-      }
-
-      if (!lat || !lng) {
-        throw new Error("Unable to locate coordinates for this school on Google Maps.");
-      }
-
+      const { latitude, longitude } = result;
       await updateSchool.mutateAsync({
         id: school.id,
-        latitude: lat,
-        longitude: lng,
+        latitude,
+        longitude,
         isActive: true,
-        source: "Google Geocoding Assisted",
-        ...(detectedMunicipality ? { municipality: detectedMunicipality } : {}),
-        ...(detectedProvince ? { province: detectedProvince } : {}),
+        source: result.reused ? school.source : result.source,
       });
-      
+
       toast({
         title: "Geolocation Successful",
-        description: `${school.schoolName} → ${detectedMunicipality || "?"}, ${detectedProvince || "?"} (${lat.toFixed(5)}, ${lng.toFixed(5)})`,
+        description: `${result.displayName} (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to geolocate school.";

@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { type SchoolRegistry as School } from "@shared/schema";
 import { api, type IntegrationPreviewInput, type SchoolInput } from "@shared/routes";
-import { requestGeocodeSchool } from "@/lib/geocodeSchoolApi";
 import { hasCoordinates, normalizeSchoolName } from "@shared/schoolRegistry";
 import {
   SYSTEM_FIELDS,
@@ -31,7 +30,6 @@ import {
   type SourceRecord,
 } from "@/lib/admissionsIntegration";
 import { useSyncStudents } from "@/hooks/use-gis-admin";
-import { useImportSchools } from "@/hooks/use-schools";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -107,7 +105,6 @@ const sourcePriority: Array<{
 
 export function AdmissionsIntegrationHub({ existingSchools }: AdmissionsIntegrationHubProps) {
   const { toast } = useToast();
-  const importSchools = useImportSchools();
   const syncStudents = useSyncStudents();
   const [sourceMode, setSourceMode] = useState<SourceMode>("api");
   const [records, setRecords] = useState<SourceRecord[]>([]);
@@ -158,8 +155,7 @@ export function AdmissionsIntegrationHub({ existingSchools }: AdmissionsIntegrat
   );
 
   const summary = useMemo(() => {
-    const matched = preview.filter((row) => row.matchedSchool).length;
-    const feederRows = preview.filter((row) => row.feederSchool && row.status !== "duplicate").length;
+    const matched = preview.filter((row) => row.status === "matched").length;
     const duplicates = preview.filter((row) => row.status === "duplicate").length;
     return {
       total: preview.length,
@@ -282,66 +278,55 @@ export function AdmissionsIntegrationHub({ existingSchools }: AdmissionsIntegrat
   const [importProgress, setImportProgress] = useState<{ total: number; processed: number; matched: number; unmatched: number; errors: number; percentage: number; isProcessing: boolean } | null>(null);
 
   const applyToGis = async () => {
-    if (records.length === 0) {
-      toast({ title: "No records", description: "There are no records to process.", variant: "destructive" });
+    const eligibleRows = preview.filter(row =>
+      row.status !== "duplicate" && row.studentNumber && row.fullName && row.feederSchoolRegistry);
+    const mapped = buildGisSyncRecords(eligibleRows, fieldMapping);
+    if (!mapped.length) {
+      toast({ title: "No records to import", description: "Check the student ID, name, and school columns.", variant: "destructive" });
       return;
     }
 
     setIsApplying(true);
+    let processed = 0;
+    let needsReview = 0;
+    let failed = 0;
+    let skipped = 0;
+    const nextFingerprints = new Set(importedFingerprints);
+    setImportProgress({ total: mapped.length, processed: 0, matched: 0, unmatched: 0, errors: 0, percentage: 0, isProcessing: true });
     try {
-      // 1. Start the import session
-      const startRes = await fetch("/api/imports/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ totalRecords: records.length }),
-      });
-      if (!startRes.ok) throw new Error("Failed to start import session");
-
-      // 2. Chunk records into batches of 100
       const batchSize = 100;
-      for (let i = 0; i < records.length; i += batchSize) {
-        const batch = records.slice(i, i + batchSize);
-        await fetch("/api/imports/batch", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ records: batch }),
+      for (let i = 0; i < mapped.length; i += batchSize) {
+        const batch = mapped.slice(i, i + batchSize);
+        const result = await syncStudents.mutateAsync({ source: sourceMode, records: batch });
+        processed += result.processed;
+        needsReview += result.needsReview ?? 0;
+        failed += result.failed;
+        skipped += result.skipped;
+
+        if (result.processed === batch.length) {
+          eligibleRows.slice(i, i + batch.length).forEach(row => nextFingerprints.add(row.fingerprint));
+          saveImportedAdmissionFingerprints(nextFingerprints);
+          setImportedFingerprints(new Set(nextFingerprints));
+        }
+        setImportProgress({
+          total: mapped.length,
+          processed,
+          matched: processed - needsReview,
+          unmatched: needsReview,
+          errors: failed,
+          percentage: Math.round((processed + failed + skipped) / mapped.length * 100),
+          isProcessing: true,
         });
       }
-
-      // 3. Poll for progress
-      const pollProgress = () => {
-        const interval = setInterval(async () => {
-          try {
-            const res = await fetch("/api/imports/progress");
-            const data = await res.json();
-            setImportProgress(data);
-
-            if (!data.isProcessing && data.percentage === 100) {
-              clearInterval(interval);
-              setIsApplying(false);
-              addEvent("success", `Successfully processed ${data.total} records.`);
-              toast({ title: "Import complete", description: `Processed ${data.total} records seamlessly in the background.` });
-              
-              // Move imported fingerprints
-              const nextFingerprints = new Set(importedFingerprints);
-              preview.forEach(row => nextFingerprints.add(row.fingerprint));
-              saveImportedAdmissionFingerprints(nextFingerprints);
-              setImportedFingerprints(nextFingerprints);
-            }
-          } catch (e) {
-            console.error("Progress polling error", e);
-          }
-        }, 1000);
-      };
-      
-      pollProgress();
-      addEvent("success", `Queued ${records.length} records for background processing.`);
-      toast({ title: "Import started", description: "Processing records in the background." });
-
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to apply GIS updates.";
+      const summary = `${processed} saved, ${needsReview} school matches for review, ${skipped} skipped, ${failed} failed.`;
+      addEvent(failed ? "warning" : "success", summary);
+      toast({ title: "Import complete", description: summary });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to apply GIS updates.";
       addEvent("error", message);
-      toast({ title: "Import failed", description: message, variant: "destructive" });
+      toast({ title: "Import stopped", description: message, variant: "destructive" });
+    } finally {
+      setImportProgress(progress => progress && { ...progress, isProcessing: false });
       setIsApplying(false);
     }
   };
@@ -658,8 +643,8 @@ export function AdmissionsIntegrationHub({ existingSchools }: AdmissionsIntegrat
                ) : (
                  preview.map((row) => {
                    const admissionType = String(row.sourceRecord[Object.entries(fieldMapping).find(([, mapped]) => mapped === "studentType")?.[0] || ""] || "") || "—";
-                   const schoolType = row.matchedSchool?.institutionType || inferSchoolType(row.feederSchool);
-                   const municipality = row.matchedSchool?.municipality || row.municipality || "Laguna";
+                   const schoolType = row.matchedSchoolRegistry?.schoolType || inferSchoolType(row.feederSchoolRegistry);
+                   const municipality = row.matchedSchoolRegistry?.municipality || row.municipality || "Laguna";
                    
                    return (
                      <TableRow key={`${row.fingerprint}-${row.rowNumber}`} className="text-[13px] hover:bg-slate-50/80 transition-colors border-b border-slate-50">
@@ -667,7 +652,7 @@ export function AdmissionsIntegrationHub({ existingSchools }: AdmissionsIntegrat
                        <TableCell className="font-medium text-slate-900 whitespace-nowrap">{row.fullName || "—"}</TableCell>
                        <TableCell className="whitespace-nowrap text-slate-600">{row.program || row.strand || "—"}</TableCell>
                        <TableCell className="whitespace-nowrap text-slate-600">{admissionType}</TableCell>
-                       <TableCell className="max-w-[240px] truncate text-slate-800" title={row.feederSchool}>{row.feederSchool || "—"}</TableCell>
+                       <TableCell className="max-w-[240px] truncate text-slate-800" title={row.feederSchoolRegistry}>{row.feederSchoolRegistry || "—"}</TableCell>
                        <TableCell className="whitespace-nowrap text-slate-600">{schoolType}</TableCell>
                        <TableCell className="whitespace-nowrap text-slate-600">{municipality}</TableCell>
                        <TableCell className="whitespace-nowrap text-slate-500 text-[12px]">{lastSource}</TableCell>

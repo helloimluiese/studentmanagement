@@ -24,7 +24,7 @@ import {
   users,
   barangayRegistry,
 } from "@shared/schema";
-import { eq, and, count, desc, inArray, not, isNull, or } from "drizzle-orm";
+import { eq, and, avg, count, desc, inArray, not, isNull, ne, or } from "drizzle-orm";
 import { isAdmin, hashPassword, comparePasswords } from "./auth";
 import { authLimiter, uploadLimiter, writeLimiter, publicApiLimiter } from "./security";
 import { logAuditEvent } from "./auditLogger";
@@ -32,7 +32,7 @@ import { enterpriseCache } from "./cache";
 import { enterpriseQueue } from "./queue";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
-import { normalizeSchoolName } from "@shared/schoolRegistry";
+import { hasCoordinates, normalizeSchoolName } from "@shared/schoolRegistry";
 import { SchoolMatchingEngine } from "./schoolMatcher";
 import { z } from "zod";
 import { previewIntegrationSource } from "./integrationService";
@@ -51,6 +51,8 @@ import {
 } from "./gisPipeline";
 import {
   geocodeSchoolPreview,
+  geocodeBarangay,
+  isSchoolDirectoryEntry,
   lookupSchoolInRegistry,
 } from "./geocodeLookup";
 import multer from "multer";
@@ -287,7 +289,8 @@ export async function registerRoutes(
       const results = await searchSchools(q);
       return res.json(results);
     }
-    const schoolsList = await enterpriseCache.getOrSet("schools:all", 120, () => storage.listSchoolRegistry());
+    const schoolsList = await enterpriseCache.getOrSet("schools:all", 120, async () =>
+      (await storage.listSchoolRegistry()).filter(isSchoolDirectoryEntry));
     res.json(schoolsList);
   });
 
@@ -464,6 +467,26 @@ export async function registerRoutes(
     } catch (err) {
       res.status(500).json({ message: "Failed to create barangay" });
     }
+  });
+
+  app.post("/api/barangay-registry/:id/geocode", isAdmin, writeLimiter, async (req, res) => {
+    const id = parsePositiveIntId(req.params.id);
+    if (!id) return res.status(400).json({ message: "Invalid barangay ID" });
+    const db = getDb();
+    const [barangay] = await db.select().from(barangayRegistry)
+      .where(and(eq(barangayRegistry.id, id), eq(barangayRegistry.isActive, true))).limit(1);
+    if (!barangay) return res.status(404).json({ message: "Barangay not found in the active directory." });
+    if (hasCoordinates(barangay)) return res.json(barangay);
+
+    const coordinates = await geocodeBarangay(barangay);
+    if (!coordinates) return res.status(404).json({ message: "No verified coordinates found for this barangay." });
+    await db.update(barangayRegistry).set({ ...coordinates, updatedAt: new Date() })
+      .where(and(eq(barangayRegistry.id, id), eq(barangayRegistry.isActive, true),
+        or(isNull(barangayRegistry.latitude), isNull(barangayRegistry.longitude))));
+    enterpriseCache.invalidate("barangays:");
+    const [updated] = await db.select().from(barangayRegistry).where(eq(barangayRegistry.id, id)).limit(1);
+    if (!updated) return res.status(404).json({ message: "Barangay not found." });
+    return res.json(updated);
   });
 
   app.patch("/api/barangay-registry/:id", isAdmin, writeLimiter, async (req, res) => {
@@ -722,8 +745,10 @@ export async function registerRoutes(
           previousSchool: getVal(["school", "previous", "graduated", "feeder"]),
           program: getVal(["program", "course", "strand", "degree"]),
           scholarship: getVal(["scholarship", "iskolar", "grant", "scholar", "iskolar ni kap"]),
-          municipality: getVal(["municipality", "city", "town", "address"]),
+          municipality: getVal(["municipality", "city", "town"]),
+          province: getVal(["province"]),
           barangay: getVal(["barangay", "brgy"]),
+          address: getVal(["address"]),
           strand: getVal(["strand"]),
           schedule: getVal(["schedule", "sched"]),
           contactNumber: getVal(["contact", "contact no", "number", "phone"]),
@@ -1069,12 +1094,18 @@ export async function registerRoutes(
   app.get("/api/settings/diagnostics", isAdmin, async (req, res) => {
     const db = getDb();
 
-    const registryCount = await db.select({ value: count() }).from(schoolRegistry);
+    const registryCount = await db.select({ value: count() }).from(schoolRegistry).where(and(
+      isNull(schoolRegistry.deletedAt),
+      or(isNull(schoolRegistry.schoolType), ne(schoolRegistry.schoolType, "Barangay")),
+    ));
     const aliasCount = await db.select({ value: count() }).from(schoolAliases);
     
     const matchedCount = await db.select({ value: count() }).from(studentImports).where(eq(studentImports.importStatus, "Matched"));
     const unmatchedCount = await db.select({ value: count() }).from(studentImports).where(eq(studentImports.importStatus, "Unmatched"));
     const appliedCount = await db.select({ value: count() }).from(studentImports).where(eq(studentImports.importStatus, "Applied"));
+    const [confidence] = await db.select({ value: avg(studentImports.matchConfidence) })
+      .from(studentImports)
+      .where(inArray(studentImports.importStatus, ["Matched", "Applied"]));
 
     const totalProcessed = matchedCount[0].value + unmatchedCount[0].value + appliedCount[0].value;
     const successRate = totalProcessed === 0 ? 0 : Math.round(((matchedCount[0].value + appliedCount[0].value) / totalProcessed) * 100);
@@ -1086,8 +1117,12 @@ export async function registerRoutes(
       unmatchedRecords: unmatchedCount[0].value,
       appliedRecords: appliedCount[0].value,
       importSuccessRate: successRate,
-      averageConfidence: 95, // Mock for now
-      systemHealth: "Optimal"
+      averageConfidence: confidence.value == null ? null : Math.round(Number(confidence.value)),
+      systemHealth: "Database reachable",
+      locationProviders: {
+        localDirectory: registryCount[0].value > 0,
+        googleGeocodingConfigured: Boolean(process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY),
+      },
     });
   });
 

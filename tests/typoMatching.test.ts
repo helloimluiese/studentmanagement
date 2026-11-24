@@ -36,6 +36,13 @@ async function runTypoTests() {
   assert.equal(matcher.match("BiÃ±an City SHS San Antonio").school?.id, 2);
   assert.equal(matcher.match("Trimx Coleges").school?.id, 3);
   assert.equal(matcher.match("Calmba City SHS").school?.id, 4);
+  const ambiguous = new SchoolMatchingEngine([
+    ...mockSchools,
+    { ...mockSchools[3], id: 5, municipality: "Cabuyao" },
+  ], []);
+  assert.equal(ambiguous.match("Calamba City Senior High School").status, "suggested");
+  assert.equal(ambiguous.match("Calmba City SHS").status, "suggested");
+  assert.equal((await ambiguous.matchAsync("Calamba City Senior High School")).status, "suggested");
   assert.ok(computeTypoSimilarity("Langkwia", "Langkiwa") >= 0.85);
   console.log("PASS [2/4]: School typo, mojibake, and abbreviation matching verified");
 
@@ -54,6 +61,14 @@ async function runTypoTests() {
   assert.equal(resolveScholarBarangay({ address: "Sto.Tmas, Binan" }, mockBarangays)?.barangayName, "Santo Tomas");
   assert.equal(resolveScholarBarangay({ address: "De La Pas" }, mockBarangays)?.barangayName, "De La Paz");
   assert.equal(resolveScholarBarangay({ address: "Canlalayy" }, mockBarangays)?.barangayName, "Canlalay");
+  const barangaysWithCollision = [
+    ...mockBarangays,
+    { province: "Laguna", municipality: "Santa Rosa", barangayName: "De La Paz", latitude: null, longitude: null },
+  ];
+  assert.equal(resolveScholarBarangay({ barangay: "De La Paz" }, barangaysWithCollision), null);
+  assert.equal(resolveScholarBarangay({ barangay: "De La Pas" }, barangaysWithCollision), null);
+  assert.equal(resolveScholarBarangay({ barangay: "De La Pazz", municipality: "City of Santa Rosa" }, barangaysWithCollision)?.municipality, "Santa Rosa");
+  assert.equal(resolveScholarBarangay({ barangay: "De La Paz", municipality: "Pasig" }, barangaysWithCollision), null);
   console.log("PASS [3/4]: Barangay typo & Filipino phonetic resolution verified (6/6 cases)");
 
   // 4. Program lettering & typo recognition
