@@ -90,21 +90,45 @@ export class SchoolMatchingEngine {
   }
 
   private getAcronyms(name: string, municipality?: string | null): string[] {
-    const cleanName = name.replace(/\([^)]*\)/g, '').trim();
-    const words = cleanName.split(/[\s-]+/);
-    const getAcr = (wordList: string[]) => wordList.map(w => w.match(/^[A-Za-z]/) ? w.match(/^[A-Za-z]/)![0].toUpperCase() : '').join('');
+    const cleanName = name.replace(/\([^)]*\)/g, "").trim();
+    const words = cleanName.split(/[\s-]+/).filter(Boolean);
+    const ACRONYM_STOP_WORDS = new Set([
+      "of", "the", "and", "in", "at", "for", "to", "on", "de", "del", "dela", "la",
+      "ng", "sa", "inc", "incorporated", "corp", "corporation",
+    ]);
+    const BRANCH_WORDS = new Set(["campus", "branch", "main", "annex", "extension", "standalone"]);
 
+    const getAcr = (wordList: string[]) =>
+      wordList
+        .map((w) => {
+          const m = w.match(/^[A-Za-z]/);
+          return m ? m[0].toUpperCase() : "";
+        })
+        .join("");
+
+    // 1. All words (legacy)
     const fullAcronym = getAcr(words);
-    
-    const noBranchWords = words.filter(w => {
-      const lower = w.toLowerCase();
-      if (municipality && lower === municipality.toLowerCase()) return false;
-      if (['campus', 'branch'].includes(lower)) return false;
-      return true;
-    });
-    const noBranchAcronym = getAcr(noBranchWords);
 
-    return Array.from(new Set([fullAcronym, noBranchAcronym])).filter(a => a.length > 1);
+    // 2. Skip connector stop-words ("University of Perpetual Help System" -> "UPHS", "Polytechnic University of the Philippines" -> "PUP")
+    const noStopWords = words.filter((w) => !ACRONYM_STOP_WORDS.has(w.toLowerCase()));
+    const stopSkippedAcronym = getAcr(noStopWords);
+
+    // 3. Skip connector stop-words AND branch/municipality words
+    const muniWords = new Set(
+      (municipality || "")
+        .toLowerCase()
+        .split(/[\s-]+/)
+        .filter((w) => w.length >= 3),
+    );
+    const coreInstitutionWords = noStopWords.filter((w) => {
+      const lower = w.toLowerCase();
+      return !BRANCH_WORDS.has(lower) && !muniWords.has(lower);
+    });
+    const coreAcronym = getAcr(coreInstitutionWords);
+
+    return Array.from(new Set([fullAcronym, stopSkippedAcronym, coreAcronym])).filter(
+      (a) => a.length >= 2,
+    );
   }
 
   public async matchAsync(rawName: string, metadata?: { address?: string; municipality?: string; province?: string; program?: string }): Promise<MatchResult> {

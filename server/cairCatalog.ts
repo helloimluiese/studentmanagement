@@ -26,9 +26,70 @@ export interface IndexedCairSchool extends RawCairRecord {
   normName: string;
   tokens: string[];
   coreTokens: string[];
+  acronyms: string[];
   phonKey: string;
   normMuni: string;
   normProv: string;
+}
+
+const ACRONYM_CONNECTOR_WORDS = new Set([
+  "of", "the", "and", "in", "at", "for", "to", "on", "de", "del", "dela", "la",
+  "ng", "sa", "inc", "incorporated", "corp", "corporation",
+]);
+
+const ACRONYM_BRANCH_WORDS = new Set([
+  "campus", "branch", "main", "annex", "extension", "standalone", "stand", "alone", "city", "province",
+]);
+
+const LOCALITY_NICKNAMES: Array<[RegExp, string]> = [
+  [/\bgma\b/gi, "gen mariano alvarez"],
+  [/\bdasma\b/gi, "dasmarinas"],
+  [/\b(lb|elbi)\b/gi, "los banos"],
+  [/\bqc\b/gi, "quezon city"],
+  [/\bcdo\b/gi, "cagayan de oro"],
+  [/\bbgc\b/gi, "taguig"],
+  [/\bmunti\b/gi, "muntinlupa"],
+  [/\bpque\b/gi, "paranaque"],
+  [/\bmanda\b/gi, "mandaluyong"],
+];
+
+export function expandLocalityNicknames(input: string): string {
+  let out = input || "";
+  for (const [pattern, replacement] of LOCALITY_NICKNAMES) {
+    out = out.replace(pattern, replacement);
+  }
+  return out;
+}
+
+function generateSchoolAcronyms(rawName: string, municipality: string): string[] {
+  const cleaned = cleanRawText(rawName.replace(/\([^)]*\)/g, ""));
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return [];
+
+  const toAcr = (list: string[]) =>
+    list
+      .map((w) => (w[0] && /[A-Za-z]/.test(w[0]) ? w[0].toUpperCase() : ""))
+      .join("");
+
+  const noConnectors = words.filter((w) => !ACRONYM_CONNECTOR_WORDS.has(w.toLowerCase()));
+  const muniWords = new Set(
+    cleanRawText(municipality || "")
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length >= 3),
+  );
+  const noBranch = noConnectors.filter((w) => {
+    const l = w.toLowerCase();
+    return !ACRONYM_BRANCH_WORDS.has(l) && !muniWords.has(l);
+  });
+
+  // Also generate acronym without trailing generic "GMA" / branch word if embedded in name
+  const withoutTrailingBranch =
+    noBranch.length >= 4 ? noBranch.slice(0, noBranch.length - 1) : noBranch;
+
+  return Array.from(
+    new Set([toAcr(words), toAcr(noConnectors), toAcr(noBranch), toAcr(withoutTrailingBranch)]),
+  ).filter((a) => a.length >= 2 && a.length <= 12);
 }
 
 const GENERIC_SUFFIX_TOKENS = new Set([
@@ -94,6 +155,7 @@ interface CairIndex {
   all: IndexedCairSchool[];
   byNormName: Map<string, IndexedCairSchool[]>;
   byToken: Map<string, IndexedCairSchool[]>;
+  byAcronym: Map<string, IndexedCairSchool[]>;
 }
 
 let cachedIndex: CairIndex | null = null;
@@ -107,7 +169,7 @@ export function getCairIndex(): CairIndex {
 
   const filePath = getCairCatalogPath();
   if (!fs.existsSync(filePath)) {
-    cachedIndex = { all: [], byNormName: new Map(), byToken: new Map() };
+    cachedIndex = { all: [], byNormName: new Map(), byToken: new Map(), byAcronym: new Map() };
     return cachedIndex;
   }
 
@@ -117,17 +179,20 @@ export function getCairIndex(): CairIndex {
   const all: IndexedCairSchool[] = [];
   const byNormName = new Map<string, IndexedCairSchool[]>();
   const byToken = new Map<string, IndexedCairSchool[]>();
+  const byAcronym = new Map<string, IndexedCairSchool[]>();
 
   for (const r of rawList) {
     const normName = normalizeSchoolName(r.n);
     if (!normName) continue;
     const tokens = normName.split(" ").filter(Boolean);
     const coreTokens = tokens.filter((t) => !GENERIC_SUFFIX_TOKENS.has(t));
+    const acronyms = generateSchoolAcronyms(r.n, r.m);
     const entry: IndexedCairSchool = {
       ...r,
       normName,
       tokens,
       coreTokens,
+      acronyms,
       phonKey: phPhoneticKey(normName),
       normMuni: normalizeMunicipality(r.m),
       normProv: normalizeMunicipality(r.p),
@@ -146,9 +211,15 @@ export function getCairIndex(): CairIndex {
       if (bucket) bucket.push(entry);
       else byToken.set(tok, [entry]);
     }
+
+    for (const acr of acronyms) {
+      const b = byAcronym.get(acr);
+      if (b) b.push(entry);
+      else byAcronym.set(acr, [entry]);
+    }
   }
 
-  cachedIndex = { all, byNormName, byToken };
+  cachedIndex = { all, byNormName, byToken, byAcronym };
   return cachedIndex;
 }
 
@@ -440,11 +511,36 @@ export function analyzeCairCandidates(
   const isTransferee = /\b(transferee|2nd courser|college)\b/i.test(ctx?.studentType || "");
   const looksHigherEd = isTransferee || /\b(university|college|polytechnic)\b/i.test(cleaned);
 
-  // Build candidate pool from exact + token buckets
+  // Build candidate pool from exact + token buckets + dynamic acronym buckets
   const candidateSet = new Set<IndexedCairSchool>();
   const exactBucket = index.byNormName.get(normQuery);
   if (exactBucket) {
     for (const item of exactBucket) candidateSet.add(item);
+  }
+
+  // Dynamic Acronym + Branch/Town Lookup (e.g. "UPHSL GMA", "PUP Sta Rosa", "LPU Cavite", "SPRCNHS")
+  const rawWords = cleaned.split(/\s+/).filter(Boolean);
+  const firstWordUpper = (rawWords[0] || "").toUpperCase().replace(/[^A-Z]/g, "");
+  const fullLettersUpper = cleaned.toUpperCase().replace(/[^A-Z]/g, "");
+  const branchTailRaw = rawWords.slice(1).join(" ");
+  const branchTailExpanded = cleanRawText(expandLocalityNicknames(branchTailRaw)).toLowerCase();
+
+  const acronymMatches = new Set<IndexedCairSchool>();
+  if (firstWordUpper.length >= 2 && firstWordUpper.length <= 10) {
+    const directAcr = index.byAcronym.get(firstWordUpper) || [];
+    for (const item of directAcr) acronymMatches.add(item);
+    // Also support 5+ letter system acronyms with trailing system letter (e.g. UPHSL / UPHSD -> UPHS) when a branch/town is specified
+    if (firstWordUpper.length >= 5 && branchTailExpanded.length >= 3) {
+      const baseAcr = index.byAcronym.get(firstWordUpper.slice(0, -1)) || [];
+      for (const item of baseAcr) acronymMatches.add(item);
+    }
+  }
+  if (rawWords.length === 1 && fullLettersUpper.length >= 3 && fullLettersUpper.length <= 12) {
+    const fullAcr = index.byAcronym.get(fullLettersUpper) || [];
+    for (const item of fullAcr) acronymMatches.add(item);
+  }
+  for (const item of Array.from(acronymMatches)) {
+    candidateSet.add(item);
   }
   for (const tok of queryTokens) {
     const bucket = index.byToken.get(tok);
@@ -490,6 +586,18 @@ export function analyzeCairCandidates(
           (cand.normMuni && computeTypoSimilarity(et.toLowerCase(), cand.normMuni) >= 0.8),
       );
       if (locExplained) score = 0.96;
+    }
+
+    if (score === 0 && acronymMatches.has(cand)) {
+      if (branchTailExpanded.length >= 3) {
+        const candLoc = `${cand.normMuni} ${cand.normProv} ${cand.n.toLowerCase()} ${cand.b.toLowerCase()}`;
+        const branchTokens = branchTailExpanded.split(/\s+/).filter((t) => t.length >= 3);
+        if (branchTokens.length > 0 && branchTokens.every((bt) => candLoc.includes(bt))) {
+          score = 0.94;
+        }
+      } else if (rawWords.length === 1 && firstWordUpper.length >= 4) {
+        score = 0.89;
+      }
     }
 
     if (score === 0) {
