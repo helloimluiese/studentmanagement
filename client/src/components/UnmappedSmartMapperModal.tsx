@@ -96,7 +96,7 @@ interface PlanSummary {
 }
 
 type FilterTab = "all" | "ready_high" | "review" | "unresolved";
-type RunPhase = "idle" | "scanning" | "applying" | "done" | "error";
+type RunPhase = "idle" | "scanning" | "ready" | "applying" | "done" | "error";
 
 function MapClickPin({ onPick }: { onPick: (lat: number, lng: number) => void }) {
   useMapEvents({
@@ -218,7 +218,7 @@ export function UnmappedSmartMapperModal({
       setSelectedKeys(autoSafe);
       setConfirmedKeys(new Set());
       setPage(1);
-      setPhase("idle");
+      setPhase("ready");
     } catch (err: any) {
       const msg = err?.message || "Failed to generate smart mapping plan.";
       setErrorMessage(msg);
@@ -454,7 +454,7 @@ export function UnmappedSmartMapperModal({
               </DialogDescription>
             </DialogHeader>
 
-            {summary && phase === "idle" && (
+            {summary && phase === "ready" && (
               <div className="mt-3.5 grid grid-cols-2 gap-2 sm:grid-cols-5">
                 <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
@@ -572,7 +572,7 @@ export function UnmappedSmartMapperModal({
             </div>
           )}
 
-          {phase === "idle" && (
+          {phase === "ready" && (
             <>
               {/* Toolbar */}
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 bg-background px-6 py-2.5 shrink-0">
