@@ -99,10 +99,12 @@ export function normalizeSchoolName(name: string): string {
     .trim();
 }
 
-export function hasCoordinates(record: {
-  latitude?: number | null;
-  longitude?: number | null;
-}): record is { latitude: number; longitude: number } {
+export function hasCoordinates<
+  T extends {
+    latitude?: number | null;
+    longitude?: number | null;
+  },
+>(record: T): record is T & { latitude: number; longitude: number } {
   return (
     typeof record.latitude === "number" &&
     Number.isFinite(record.latitude) &&

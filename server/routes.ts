@@ -1575,7 +1575,7 @@ export async function registerRoutes(
         const rawSchoolName = String(item?.rawSchoolName || "").trim();
         if (!rawSchoolName) continue;
 
-        let targetSchool: typeof schoolRegistry.$inferSelect | undefined = undefined;
+        let targetSchool: (typeof existingSchools)[number] | undefined = undefined;
 
         if (item.existingSchoolId) {
           targetSchool = existingSchools.find((s) => s.id === Number(item.existingSchoolId));
@@ -1659,7 +1659,7 @@ export async function registerRoutes(
                 aliasName: rawSchoolName,
                 normalizedAlias: rawNorm,
               })
-              .catch(() => {});
+              .catch(() => { });
           }
         }
 
@@ -1684,7 +1684,7 @@ export async function registerRoutes(
               officialSchoolId: targetSchool.id,
               resolvedBy: "Smart Mapper",
             })
-            .catch(() => {});
+            .catch(() => { });
         }
 
         // Chunked batch updates on students_processed (500 IDs per batch)
