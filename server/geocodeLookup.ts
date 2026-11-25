@@ -1,10 +1,11 @@
-﻿import { storage } from "./storage";
+import { storage } from "./storage";
 import { schoolAliases, type SchoolRegistry } from "@shared/schema";
 import { hasCoordinates, normalizeMunicipality, normalizeSchoolName } from "@shared/schoolRegistry";
 import { cleanBarangayText } from "@shared/scholarBarangayResolver";
 import type { GeocodeSchoolResponse } from "@shared/routes";
 import { getDb } from "./db";
 import { SchoolMatchingEngine } from "./schoolMatcher";
+import { findSchoolInCairCatalog } from "./cairCatalog";
 import { eq } from "drizzle-orm";
 
 export function isSchoolDirectoryEntry(school: SchoolRegistry): boolean {
@@ -113,6 +114,19 @@ export async function geocodeSchoolPreview(
   }
 
   if (match.status === "suggested") return null;
+
+  // Check 25,562-school CAIR PH Unified Coordinates dataset before calling external Google Maps API
+  const cairMatch = findSchoolInCairCatalog(trimmed, { municipality });
+  if (cairMatch) {
+    return {
+      latitude: cairMatch.entry.lat,
+      longitude: cairMatch.entry.lng,
+      displayName: `${cairMatch.entry.n} (${[cairMatch.entry.m, cairMatch.entry.p].filter(Boolean).join(", ")})`,
+      source: "master-directory",
+      reused: false,
+    };
+  }
+
   const officialName = match.school?.schoolName ?? trimmed;
   const queryName = normalizeSchoolName(officialName);
   const locality = normalizeMunicipality(municipality);

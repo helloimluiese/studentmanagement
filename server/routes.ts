@@ -32,8 +32,9 @@ import { enterpriseCache } from "./cache";
 import { enterpriseQueue } from "./queue";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
-import { hasCoordinates, normalizeSchoolName } from "@shared/schoolRegistry";
+import { hasCoordinates, normalizeMunicipality, normalizeSchoolName } from "@shared/schoolRegistry";
 import { SchoolMatchingEngine } from "./schoolMatcher";
+import { analyzeCairCandidates } from "./cairCatalog";
 import { z } from "zod";
 import { previewIntegrationSource } from "./integrationService";
 import {
@@ -68,7 +69,7 @@ async function refreshCatalog() {
   const dbPrograms = await db.select().from(programs);
   const deptRecords = await db.select().from(departments);
   const deptMap = new Map(deptRecords.map(d => [d.id, d]));
-  
+
   const formatted = dbPrograms.map(p => {
     const dept = deptMap.get(p.departmentId);
     return {
@@ -316,9 +317,9 @@ export async function registerRoutes(
     try {
       const db = getDb();
       const safeDelete = async (table: any) => {
-        try { await db.delete(table); } catch(e) { console.warn(`Failed to delete table:`, (e as Error).message); }
+        try { await db.delete(table); } catch (e) { console.warn(`Failed to delete table:`, (e as Error).message); }
       };
-      
+
       await safeDelete(mappingLogs);
       await safeDelete(studentsProcessed);
       await safeDelete(studentsRaw);
@@ -375,7 +376,7 @@ export async function registerRoutes(
       console.error("[directory/import] error:", err);
       res.status(500).json({ success: false, message: err instanceof Error ? err.message : "Failed to import directory" });
     } finally {
-      await unlink(uploadedPath).catch(() => {});
+      await unlink(uploadedPath).catch(() => { });
     }
   });
 
@@ -391,6 +392,22 @@ export async function registerRoutes(
     try {
       const input = api.schoolRegistry.create.input.parse(req.body);
       const school = await storage.createSchoolRegistry(input);
+      // Auto-link any unmapped processed students whose school name matches the newly added school
+      if (school?.id && school.schoolName) {
+        const db = getDb();
+        await db.update(studentsProcessed).set({
+          schoolRegistryId: school.id,
+          mappingStatus: hasCoordinates(school) ? "mapped" : "needs_review",
+        }).where(
+          and(
+            isNull(studentsProcessed.schoolRegistryId),
+            or(
+              eq(studentsProcessed.lastSchoolName, school.schoolName),
+              eq(studentsProcessed.previousSchool, school.schoolName),
+            ),
+          ),
+        );
+      }
       enterpriseCache.invalidate("schools:");
       enterpriseCache.invalidate("gis:");
       res.status(201).json(school);
@@ -407,6 +424,12 @@ export async function registerRoutes(
       const input = api.schoolRegistry.update.input.parse(req.body);
       const school = await storage.updateSchoolRegistry(id, input);
       if (!school) return res.status(404).json({ message: 'School not found' });
+      if (hasCoordinates(school)) {
+        const db = getDb();
+        await db.update(studentsProcessed)
+          .set({ mappingStatus: "mapped" })
+          .where(eq(studentsProcessed.schoolRegistryId, id));
+      }
       enterpriseCache.invalidate("schools:");
       enterpriseCache.invalidate("gis:");
       res.json(school);
@@ -554,10 +577,10 @@ export async function registerRoutes(
       const result = await storage.batchDeleteSchoolRegistry(input.ids);
       enterpriseCache.invalidate("schools:");
       enterpriseCache.invalidate("gis:");
-      const message = result.skippedCount > 0 
+      const message = result.skippedCount > 0
         ? `Deleted ${result.deletedCount} schools. Skipped ${result.skippedCount} schools because they are actively mapped to students.`
         : `Successfully deleted ${result.deletedCount} schools.`;
-        
+
       res.json({
         success: true,
         deletedCount: result.deletedCount,
@@ -579,7 +602,7 @@ export async function registerRoutes(
       const db = getDb();
 
       // Filter to requested IDs or all schools with coordinates
-      let targetSchools = allSchools.filter(s => 
+      let targetSchools = allSchools.filter(s =>
         s.latitude !== null && s.longitude !== null && s.isActive
       );
       if (Array.isArray(schoolIds) && schoolIds.length > 0) {
@@ -667,7 +690,7 @@ export async function registerRoutes(
       if (records.length > 0 && records[0].value) {
         return res.json(JSON.parse(records[0].value));
       }
-      
+
       const totalStudents = await db.select().from(studentsProcessed);
       res.json({
         batchId: "BATCH-INITIAL",
@@ -688,7 +711,7 @@ export async function registerRoutes(
 
       const records = await db.select().from(systemSettings).where(eq(systemSettings.key, "last_batch_memory"));
       let memory = records.length > 0 && records[0].value ? JSON.parse(records[0].value) : {};
-      
+
       memory.status = "applied";
       memory.appliedAt = now;
 
@@ -730,7 +753,7 @@ export async function registerRoutes(
       };
 
       const result = await previewIntegrationSource(payload);
-      
+
       // Auto-map Google Sheet columns (supports both standard headers and Trimex's 25-column enrollment sheet format)
       const mappedRecords = result.records.map((r: any) => {
         const keys = Object.keys(r);
@@ -789,7 +812,7 @@ export async function registerRoutes(
 
       // Save batch memory
       const db = getDb();
-      const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,"");
+      const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
       const randomId = Math.floor(Math.random() * 8999 + 1000);
       const batchMemory = {
         batchId: `BATCH-${dateStr}-${randomId}`,
@@ -806,13 +829,13 @@ export async function registerRoutes(
         await db.insert(systemSettings).values({ key: "last_batch_memory", value: JSON.stringify(batchMemory) });
       }
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         jobId: syncJob.id,
-        message: syncMode === "staging" 
+        message: syncMode === "staging"
           ? `Staged batch of ${mappedRecords.length} records. Review or click Apply to commit.`
           : `Auto-sync started for ${mappedRecords.length} records. Live mapping active.`,
-        batchMemory 
+        batchMemory
       });
     } catch (err: any) {
       console.error("Auto-sync error:", err);
@@ -825,11 +848,11 @@ export async function registerRoutes(
   app.post("/api/imports/start", isAdmin, uploadLimiter, async (req, res) => {
     const { totalRecords } = req.body;
     if (!totalRecords) return res.status(400).json({ message: "totalRecords is required" });
-    
+
     const db = getDb();
     // Clear old staging data before starting a new import session
     await db.delete(studentImports);
-    
+
     startImportSession(totalRecords);
     res.json({ success: true, message: "Import session started" });
   });
@@ -837,10 +860,10 @@ export async function registerRoutes(
   app.post("/api/imports/batch", isAdmin, uploadLimiter, async (req, res) => {
     const { records } = req.body;
     if (!records || !Array.isArray(records)) return res.status(400).json({ message: "records array is required" });
-    
+
     // Offload batch processing to the concurrent background job queue
     const job = enterpriseQueue.enqueue("IMPORT_STUDENTS", { records });
-    
+
     res.json({ success: true, jobId: job.id, message: "Batch queued for background processing" });
   });
 
@@ -850,8 +873,35 @@ export async function registerRoutes(
 
   app.get("/api/imports/staging", isAdmin, async (req, res) => {
     const db = getDb();
-    const records = await db.select().from(studentImports);
-    res.json(records);
+    const [stagingRows, unmappedProcessed] = await Promise.all([
+      db.select().from(studentImports),
+      db.select().from(studentsProcessed).where(
+        and(
+          ne(studentsProcessed.enrollmentStatus, "Archived"),
+          or(
+            isNull(studentsProcessed.schoolRegistryId),
+            eq(studentsProcessed.mappingStatus, "needs_review"),
+          ),
+        ),
+      ),
+    ]);
+
+    const syntheticFromProcessed = unmappedProcessed
+      .filter((s) => !s.schoolRegistryId && s.lastSchoolName && s.lastSchoolName !== "Unknown")
+      .map((s) => ({
+        id: -s.id,
+        studentNumber: s.studentNumber,
+        fullName: s.fullName || "Unknown",
+        previousSchool: s.previousSchool || s.lastSchoolName,
+        program: s.course,
+        scholarship: s.iskolarNiKap,
+        municipality: [s.barangay, s.municipality, s.province].filter(Boolean).join(", ") || "Laguna",
+        importSource: s.importedSource || "Google Sheets Auto-Sync",
+        importStatus: "Unmatched",
+        importedAt: s.syncedAt,
+      }));
+
+    res.json([...stagingRows, ...syntheticFromProcessed]);
   });
 
   app.get("/api/settings", async (req, res) => {
@@ -906,7 +956,7 @@ export async function registerRoutes(
       }
       const { id, code, name, color, targetValue } = parsed.data;
       const db = getDb();
-      
+
       if (id) {
         await db.update(departments)
           .set({ code, name, color, targetValue: targetValue || 0, updatedAt: new Date() })
@@ -1076,7 +1126,7 @@ export async function registerRoutes(
       }
     }
 
-    // 3. Update pending imports
+    // 3. Update pending imports AND live unmapped processed students
     await db.update(studentImports).set({
       importStatus: "Matched",
       matchedSchoolId: officialSchoolId,
@@ -1084,7 +1134,636 @@ export async function registerRoutes(
       matchConfidence: 100
     }).where(and(eq(studentImports.previousSchool, importedName), eq(studentImports.importStatus, "Unmatched")));
 
+    const [targetSchool] = await db.select().from(schoolRegistry).where(eq(schoolRegistry.id, officialSchoolId)).limit(1);
+    const nextMappingStatus = targetSchool && hasCoordinates(targetSchool) ? "mapped" : "needs_review";
+
+    await db.update(studentsProcessed).set({
+      schoolRegistryId: officialSchoolId,
+      mappingStatus: nextMappingStatus,
+    }).where(
+      or(
+        eq(studentsProcessed.lastSchoolName, importedName),
+        eq(studentsProcessed.previousSchool, importedName),
+      ),
+    );
+
+    enterpriseCache.invalidate("gis:");
+    enterpriseCache.invalidate("schools:");
+
     res.json({ success: true, message: "Match resolution saved" });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Advanced Large-Scale Unmapped Smart Mapping Generator (Chunked + Anti-Mis-Map)
+  // ---------------------------------------------------------------------------
+  app.post("/api/admin/unmapped/generate-plan", isAdmin, async (req, res) => {
+    try {
+      const includeGoogleFallback = Boolean(req.body?.includeGoogleFallback);
+      const db = getDb();
+
+      const [allProcessed, pendingImports, allSchools, allAliases] = await Promise.all([
+        db.select().from(studentsProcessed).where(ne(studentsProcessed.enrollmentStatus, "Archived")),
+        db.select().from(studentImports).where(eq(studentImports.importStatus, "Unmatched")),
+        storage.listSchoolRegistry(),
+        db.select().from(schoolAliases),
+      ]);
+
+      const activeSchools = allSchools.filter((s) => isSchoolDirectoryEntry(s) && s.isActive);
+      const schoolById = new Map(activeSchools.map((s) => [s.id, s]));
+      const schoolsWithCoords = activeSchools.filter((s) => hasCoordinates(s));
+      const registryMatcher = new SchoolMatchingEngine(schoolsWithCoords, allAliases);
+
+      const unmappedProcessed = allProcessed.filter((row) => {
+        if (!row.schoolRegistryId) return true;
+        if (row.mappingStatus === "needs_review" || row.mappingStatus === "pending") return true;
+        const linked = schoolById.get(row.schoolRegistryId);
+        return !linked || !hasCoordinates(linked);
+      });
+
+      interface RawUnmappedBucket {
+        groupKey: string;
+        rawSchoolName: string;
+        linkedSchoolId?: number;
+        processedIds: number[];
+        importIds: number[];
+        muniCounts: Map<string, number>;
+        provCounts: Map<string, number>;
+        typeCounts: Map<string, number>;
+        shsStrandCount: number;
+        sampleStudents: Array<{ studentNumber: string; fullName: string; course: string; locality: string }>;
+      }
+
+      const buckets = new Map<string, RawUnmappedBucket>();
+
+      const addToBucket = (opts: {
+        rawName: string;
+        linkedSchoolId?: number | null;
+        processedId?: number;
+        importId?: number;
+        studentNumber: string;
+        fullName: string;
+        course?: string | null;
+        municipality?: string | null;
+        province?: string | null;
+        barangay?: string | null;
+        studentType?: string | null;
+        strand?: string | null;
+      }) => {
+        const cleanDisplay = (opts.rawName || "").trim();
+        if (!cleanDisplay || cleanDisplay.toLowerCase() === "unknown") return;
+
+        const normKey = normalizeSchoolName(cleanDisplay) || cleanDisplay.toLowerCase();
+        const groupKey = opts.linkedSchoolId ? `LINKED-${opts.linkedSchoolId}-${normKey}` : `RAW-${normKey}`;
+
+        let bucket = buckets.get(groupKey);
+        if (!bucket) {
+          bucket = {
+            groupKey,
+            rawSchoolName: cleanDisplay,
+            linkedSchoolId: opts.linkedSchoolId || undefined,
+            processedIds: [],
+            importIds: [],
+            muniCounts: new Map(),
+            provCounts: new Map(),
+            typeCounts: new Map(),
+            shsStrandCount: 0,
+            sampleStudents: [],
+          };
+          buckets.set(groupKey, bucket);
+        }
+
+        if (opts.processedId !== undefined) bucket.processedIds.push(opts.processedId);
+        if (opts.importId !== undefined) bucket.importIds.push(opts.importId);
+
+        const muni = (opts.municipality || "").trim();
+        if (muni && muni.toLowerCase() !== "laguna" && muni.toLowerCase() !== "unknown") {
+          bucket.muniCounts.set(muni, (bucket.muniCounts.get(muni) || 0) + 1);
+        }
+        const prov = (opts.province || "").trim();
+        if (prov && prov.toLowerCase() !== "unknown") {
+          bucket.provCounts.set(prov, (bucket.provCounts.get(prov) || 0) + 1);
+        }
+        const stType = (opts.studentType || opts.strand || "").trim();
+        if (stType) {
+          bucket.typeCounts.set(stType, (bucket.typeCounts.get(stType) || 0) + 1);
+        }
+        if (opts.strand && /\b(stem|abm|humss|humms|gas|tvl|ict|he)\b/i.test(opts.strand)) {
+          bucket.shsStrandCount += 1;
+        }
+        if (bucket.sampleStudents.length < 5) {
+          bucket.sampleStudents.push({
+            studentNumber: opts.studentNumber || "—",
+            fullName: opts.fullName || "Unknown",
+            course: opts.course || "—",
+            locality: [opts.barangay, opts.municipality, opts.province].filter(Boolean).join(", ") || "Unspecified",
+          });
+        }
+      };
+
+      for (const s of unmappedProcessed) {
+        const linked = s.schoolRegistryId ? schoolById.get(s.schoolRegistryId) : undefined;
+        addToBucket({
+          rawName: linked?.schoolName || s.previousSchool || s.lastSchoolName,
+          linkedSchoolId: s.schoolRegistryId,
+          processedId: s.id,
+          studentNumber: s.studentNumber,
+          fullName: s.fullName,
+          course: s.course,
+          municipality: s.municipality,
+          province: s.province,
+          barangay: s.barangay,
+          studentType: s.admissionType,
+          strand: s.strand,
+        });
+      }
+
+      for (const imp of pendingImports) {
+        if (!imp.previousSchool) continue;
+        addToBucket({
+          rawName: imp.previousSchool,
+          importId: imp.id,
+          studentNumber: imp.studentNumber,
+          fullName: imp.fullName,
+          course: imp.program,
+          municipality: imp.municipality,
+          barangay: imp.barangay,
+          studentType: imp.admissionType,
+          strand: imp.strand,
+        });
+      }
+
+      const sortedBuckets = Array.from(buckets.values()).sort(
+        (a, b) => b.processedIds.length + b.importIds.length - (a.processedIds.length + a.importIds.length),
+      );
+
+      const topKeys = (map: Map<string, number>, limit = 3): string[] =>
+        Array.from(map.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, limit)
+          .map(([k]) => k);
+
+      const groups: any[] = [];
+      let googleCallsUsed = 0;
+
+      // Process in non-blocking chunks of 50 groups so massive datasets never stall the Node event loop
+      const CHUNK_SIZE = 50;
+      for (let i = 0; i < sortedBuckets.length; i += CHUNK_SIZE) {
+        const slice = sortedBuckets.slice(i, i + CHUNK_SIZE);
+        if (i > 0) {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+
+        for (const bucket of slice) {
+          const studentCount = bucket.processedIds.length + bucket.importIds.length;
+          const consensusMunicipalities = topKeys(bucket.muniCounts, 3);
+          const consensusProvinces = topKeys(bucket.provCounts, 3);
+          const dominantStudentType = topKeys(bucket.typeCounts, 1)[0] || "Freshman";
+          const consensusLocality =
+            [consensusMunicipalities[0], consensusProvinces[0]].filter(Boolean).join(", ") || "Laguna / Unspecified";
+
+          let status: "ready_high" | "ambiguous_review" | "suggested_review" | "unresolved" = "unresolved";
+          let ambiguityReason: string | undefined;
+          let proposal: any = null;
+          const alternatives: any[] = [];
+
+          // Case 0: Already linked to an existing school that NOW has coordinates
+          const linkedSchool = bucket.linkedSchoolId ? schoolById.get(bucket.linkedSchoolId) : undefined;
+          if (linkedSchool && hasCoordinates(linkedSchool)) {
+            status = "ready_high";
+            proposal = {
+              existingSchoolId: linkedSchool.id,
+              schoolId: linkedSchool.schoolId || undefined,
+              schoolName: linkedSchool.schoolName,
+              schoolType: linkedSchool.schoolType || "Public Senior High School",
+              sector: linkedSchool.sector || "Public",
+              barangay: linkedSchool.barangay || "",
+              municipality: linkedSchool.municipality || "Laguna",
+              province: linkedSchool.province || "Laguna",
+              address: linkedSchool.address || [linkedSchool.municipality, linkedSchool.province].filter(Boolean).join(", "),
+              latitude: linkedSchool.latitude!,
+              longitude: linkedSchool.longitude!,
+              source: "Registry / Alias",
+              confidence: 99,
+            };
+          } else {
+            // Tier 1: Existing School Registry & Aliases
+            const regMatch = await registryMatcher.matchAsync(bucket.rawSchoolName, {
+              municipality: consensusMunicipalities[0],
+              province: consensusProvinces[0],
+            });
+
+            if (regMatch.status === "matched" && regMatch.school && hasCoordinates(regMatch.school)) {
+              const s = regMatch.school;
+              const conf = regMatch.confidence ?? 92;
+              // Guard against homonym collisions across municipalities in existing registry
+              const sameNameOthers = schoolsWithCoords.filter(
+                (other) =>
+                  other.id !== s.id &&
+                  normalizeSchoolName(other.schoolName) === normalizeSchoolName(s.schoolName) &&
+                  normalizeMunicipality(other.municipality) !== normalizeMunicipality(s.municipality),
+              );
+
+              proposal = {
+                existingSchoolId: s.id,
+                schoolId: s.schoolId || undefined,
+                schoolName: s.schoolName,
+                schoolType: s.schoolType || "Public Senior High School",
+                sector: s.sector || "Public",
+                barangay: s.barangay || "",
+                municipality: s.municipality || "Laguna",
+                province: s.province || "Laguna",
+                address: s.address || [s.municipality, s.province].filter(Boolean).join(", "),
+                latitude: s.latitude!,
+                longitude: s.longitude!,
+                source: "Registry / Alias",
+                confidence: conf,
+              };
+
+              if (sameNameOthers.length > 0 && conf < 98) {
+                status = "ambiguous_review";
+                ambiguityReason = `Multiple registry entries match "${s.schoolName}" in different municipalities.`;
+                for (const alt of sameNameOthers.slice(0, 3)) {
+                  alternatives.push({
+                    existingSchoolId: alt.id,
+                    schoolId: alt.schoolId || undefined,
+                    schoolName: alt.schoolName,
+                    schoolType: alt.schoolType || "Public Senior High School",
+                    sector: alt.sector || "Public",
+                    barangay: alt.barangay || "",
+                    municipality: alt.municipality || "Laguna",
+                    province: alt.province || "Laguna",
+                    address: alt.address || "",
+                    latitude: alt.latitude!,
+                    longitude: alt.longitude!,
+                    source: "Registry / Alias",
+                    confidence: 85,
+                  });
+                }
+              } else {
+                status = conf >= 92 ? "ready_high" : "suggested_review";
+              }
+            } else if (regMatch.suggestions && regMatch.suggestions.length > 0) {
+              for (const sug of regMatch.suggestions.filter(hasCoordinates).slice(0, 3)) {
+                alternatives.push({
+                  existingSchoolId: sug.id,
+                  schoolId: sug.schoolId || undefined,
+                  schoolName: sug.schoolName,
+                  schoolType: sug.schoolType || "Public Senior High School",
+                  sector: sug.sector || "Public",
+                  barangay: sug.barangay || "",
+                  municipality: sug.municipality || "Laguna",
+                  province: sug.province || "Laguna",
+                  address: sug.address || "",
+                  latitude: sug.latitude!,
+                  longitude: sug.longitude!,
+                  source: "Registry / Alias",
+                  confidence: regMatch.confidence ?? 78,
+                });
+              }
+            }
+
+            // Tier 2: 25,562-School CAIR PH Unified Coordinates Dataset (Multi-Signal + Homonym Guard)
+            if (status !== "ready_high") {
+              const cairAnalysis = analyzeCairCandidates(bucket.rawSchoolName, {
+                municipality: consensusMunicipalities[0],
+                province: consensusProvinces[0],
+                address: consensusLocality,
+                studentType: dominantStudentType,
+                consensusMunicipalities,
+                consensusProvinces,
+                hasShsStrand: bucket.shsStrandCount > 0,
+              });
+
+              if (cairAnalysis.best) {
+                const cairProposal = {
+                  existingSchoolId: linkedSchool?.id,
+                  ...cairAnalysis.best,
+                  source: "CAIR PH Dataset" as const,
+                };
+
+                if (!proposal || cairProposal.confidence > proposal.confidence || cairAnalysis.status === "ready_high") {
+                  if (proposal) alternatives.unshift(proposal);
+                  proposal = cairProposal;
+                  status = cairAnalysis.status;
+                  ambiguityReason = cairAnalysis.ambiguityReason;
+                } else {
+                  alternatives.push(cairProposal);
+                }
+
+                for (const alt of cairAnalysis.alternatives) {
+                  if (alternatives.length < 5) {
+                    alternatives.push({
+                      ...alt,
+                      source: "CAIR PH Dataset" as const,
+                    });
+                  }
+                }
+              } else if (!proposal && alternatives.length > 0) {
+                proposal = alternatives.shift();
+                status = "suggested_review";
+              }
+            }
+
+            // Tier 3: Optional Google Maps Geocoding Fallback (only when requested, capped to protect quota)
+            if (status === "unresolved" && includeGoogleFallback && googleCallsUsed < 35) {
+              googleCallsUsed += 1;
+              const geo = await geocodeSchoolPreview(bucket.rawSchoolName, consensusMunicipalities[0]);
+              if (geo && Number.isFinite(geo.latitude) && Number.isFinite(geo.longitude)) {
+                status = "suggested_review";
+                proposal = {
+                  existingSchoolId: linkedSchool?.id,
+                  schoolName: bucket.rawSchoolName,
+                  schoolType: /\b(college|university|institute)\b/i.test(bucket.rawSchoolName)
+                    ? "Higher Education / College"
+                    : "Public Senior High School",
+                  sector: "Public",
+                  barangay: "",
+                  municipality: consensusMunicipalities[0] || "Laguna",
+                  province: consensusProvinces[0] || "Laguna",
+                  address: geo.displayName,
+                  latitude: geo.latitude,
+                  longitude: geo.longitude,
+                  source: "Google Maps",
+                  confidence: 86,
+                };
+              }
+            }
+          }
+
+          groups.push({
+            groupKey: bucket.groupKey,
+            rawSchoolName: bucket.rawSchoolName,
+            studentCount,
+            processedIds: bucket.processedIds,
+            importIds: bucket.importIds,
+            sampleStudents: bucket.sampleStudents,
+            consensusLocality,
+            dominantStudentType,
+            status,
+            ambiguityReason,
+            proposal,
+            alternatives: alternatives.slice(0, 5),
+          });
+        }
+      }
+
+      const totalStudents = allProcessed.length;
+      const totalUnmappedStudents = groups.reduce((acc, g) => acc + g.studentCount, 0);
+      const readyHighGroups = groups.filter((g) => g.status === "ready_high").length;
+      const readyHighStudents = groups
+        .filter((g) => g.status === "ready_high")
+        .reduce((acc, g) => acc + g.studentCount, 0);
+      const reviewGroups = groups.filter(
+        (g) => g.status === "ambiguous_review" || g.status === "suggested_review",
+      ).length;
+      const reviewStudents = groups
+        .filter((g) => g.status === "ambiguous_review" || g.status === "suggested_review")
+        .reduce((acc, g) => acc + g.studentCount, 0);
+      const unresolvedGroups = groups.filter((g) => g.status === "unresolved").length;
+      const unresolvedStudents = groups
+        .filter((g) => g.status === "unresolved")
+        .reduce((acc, g) => acc + g.studentCount, 0);
+
+      const currentlyMapped = Math.max(0, totalStudents - unmappedProcessed.length);
+      const projectedMappedPercent =
+        totalStudents === 0
+          ? 100
+          : Math.min(100, Math.round(((currentlyMapped + readyHighStudents) / totalStudents) * 100));
+
+      res.json({
+        summary: {
+          totalStudents,
+          totalUnmappedStudents,
+          totalGroups: groups.length,
+          readyHighGroups,
+          readyHighStudents,
+          reviewGroups,
+          reviewStudents,
+          unresolvedGroups,
+          unresolvedStudents,
+          projectedMappedPercent,
+        },
+        groups,
+      });
+    } catch (err: any) {
+      console.error("[unmapped/generate-plan] error:", err);
+      res.status(500).json({ message: err?.message || "Failed to generate smart mapping plan" });
+    }
+  });
+
+  app.post("/api/admin/unmapped/apply-plan", isAdmin, writeLimiter, async (req, res) => {
+    try {
+      const items = Array.isArray(req.body?.items) ? req.body.items : [];
+      if (items.length === 0) {
+        return res.status(400).json({ message: "No mapping items provided" });
+      }
+
+      const db = getDb();
+      let existingSchools = await storage.listSchoolRegistry();
+      let resolvedGroups = 0;
+      let resolvedStudents = 0;
+      let schoolsCreated = 0;
+
+      const ID_BATCH_SIZE = 500;
+
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
+        if (idx > 0 && idx % 25 === 0) {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+
+        const rawSchoolName = String(item?.rawSchoolName || "").trim();
+        if (!rawSchoolName) continue;
+
+        let targetSchool: typeof schoolRegistry.$inferSelect | undefined = undefined;
+
+        if (item.existingSchoolId) {
+          targetSchool = existingSchools.find((s) => s.id === Number(item.existingSchoolId));
+          // If the existing school lacked coordinates and the proposal supplied valid ones, enrich it
+          if (
+            targetSchool &&
+            !hasCoordinates(targetSchool) &&
+            item.school &&
+            Number.isFinite(Number(item.school.latitude)) &&
+            Number.isFinite(Number(item.school.longitude))
+          ) {
+            targetSchool = await storage.updateSchoolRegistry(targetSchool.id, {
+              latitude: Number(item.school.latitude),
+              longitude: Number(item.school.longitude),
+              municipality: item.school.municipality || targetSchool.municipality,
+              province: item.school.province || targetSchool.province,
+              barangay: item.school.barangay || targetSchool.barangay,
+              source: item.school.source || "CAIR PH Unified Coordinates",
+              isActive: true,
+            });
+          }
+        }
+
+        if (!targetSchool && item.school) {
+          const lat = Number(item.school.latitude);
+          const lng = Number(item.school.longitude);
+          // Coordinate & PH-bounds sanity guard
+          if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+            continue;
+          }
+
+          const schoolName = String(item.school.schoolName || rawSchoolName).trim();
+          const normTarget = normalizeSchoolName(schoolName);
+          const muniTarget = normalizeMunicipality(item.school.municipality || "");
+
+          // Deduplicate against already-created or existing schools
+          targetSchool = existingSchools.find(
+            (s) =>
+              !s.deletedAt &&
+              ((item.school.schoolId && s.schoolId === item.school.schoolId) ||
+                (normalizeSchoolName(s.schoolName) === normTarget &&
+                  normalizeMunicipality(s.municipality) === muniTarget)),
+          );
+
+          if (!targetSchool) {
+            targetSchool = await storage.createSchoolRegistry({
+              schoolId: item.school.schoolId || null,
+              schoolName,
+              normalizedSchoolName: normTarget,
+              schoolType: item.school.schoolType || "Public Senior High School",
+              sector: item.school.sector || "Public",
+              barangay: item.school.barangay || null,
+              municipality: item.school.municipality || "Laguna",
+              province: item.school.province || "Laguna",
+              address: item.school.address || null,
+              latitude: lat,
+              longitude: lng,
+              source: item.school.source || "CAIR PH Unified Coordinates",
+              isActive: true,
+            });
+            existingSchools.push(targetSchool);
+            schoolsCreated += 1;
+          }
+        }
+
+        if (!targetSchool || !hasCoordinates(targetSchool)) continue;
+
+        // Self-learning alias + match history
+        const rawNorm = normalizeSchoolName(rawSchoolName);
+        if (rawNorm) {
+          const existingAlias = await db
+            .select()
+            .from(schoolAliases)
+            .where(eq(schoolAliases.normalizedAlias, rawNorm))
+            .limit(1);
+          if (existingAlias.length === 0 && rawNorm !== normalizeSchoolName(targetSchool.schoolName)) {
+            await db
+              .insert(schoolAliases)
+              .values({
+                schoolRegistryId: targetSchool.id,
+                aliasName: rawSchoolName,
+                normalizedAlias: rawNorm,
+              })
+              .catch(() => {});
+          }
+        }
+
+        const existingHist = await db
+          .select()
+          .from(schoolMatchHistory)
+          .where(eq(schoolMatchHistory.importedName, rawSchoolName))
+          .limit(1);
+        if (existingHist.length > 0) {
+          await db
+            .update(schoolMatchHistory)
+            .set({
+              occurrences: existingHist[0].occurrences + 1,
+              officialSchoolId: targetSchool.id,
+            })
+            .where(eq(schoolMatchHistory.id, existingHist[0].id));
+        } else {
+          await db
+            .insert(schoolMatchHistory)
+            .values({
+              importedName: rawSchoolName,
+              officialSchoolId: targetSchool.id,
+              resolvedBy: "Smart Mapper",
+            })
+            .catch(() => {});
+        }
+
+        // Chunked batch updates on students_processed (500 IDs per batch)
+        const processedIds: number[] = Array.isArray(item.processedIds)
+          ? item.processedIds.map(Number).filter((n: number) => Number.isInteger(n) && n > 0)
+          : [];
+
+        if (processedIds.length > 0) {
+          for (let b = 0; b < processedIds.length; b += ID_BATCH_SIZE) {
+            const idChunk = processedIds.slice(b, b + ID_BATCH_SIZE);
+            await db
+              .update(studentsProcessed)
+              .set({
+                schoolRegistryId: targetSchool.id,
+                lastSchoolType: targetSchool.schoolType || null,
+                mappingStatus: "mapped",
+              })
+              .where(inArray(studentsProcessed.id, idChunk));
+          }
+          resolvedStudents += processedIds.length;
+        } else {
+          await db
+            .update(studentsProcessed)
+            .set({
+              schoolRegistryId: targetSchool.id,
+              lastSchoolType: targetSchool.schoolType || null,
+              mappingStatus: "mapped",
+            })
+            .where(
+              and(
+                isNull(studentsProcessed.schoolRegistryId),
+                or(
+                  eq(studentsProcessed.lastSchoolName, rawSchoolName),
+                  eq(studentsProcessed.previousSchool, rawSchoolName),
+                ),
+              ),
+            );
+        }
+
+        // Also resolve matching staging rows if any
+        await db
+          .update(studentImports)
+          .set({
+            importStatus: "Matched",
+            matchedSchoolId: targetSchool.id,
+            matchRule: "smart-mapper",
+            matchConfidence: 100,
+          })
+          .where(
+            and(
+              eq(studentImports.previousSchool, rawSchoolName),
+              eq(studentImports.importStatus, "Unmatched"),
+            ),
+          );
+
+        resolvedGroups += 1;
+      }
+
+      enterpriseCache.invalidate("gis:");
+      enterpriseCache.invalidate("schools:");
+      await logAuditEvent(
+        {
+          action: "UPDATE",
+          targetResource: "students_processed",
+          details: `Smart Mapper resolved ${resolvedGroups} school groups (${resolvedStudents} students, ${schoolsCreated} new schools)`,
+        },
+        req,
+      );
+
+      res.json({
+        success: true,
+        resolvedGroups,
+        resolvedStudents,
+        schoolsCreated,
+      });
+    } catch (err: any) {
+      console.error("[unmapped/apply-plan] error:", err);
+      res.status(500).json({ message: err?.message || "Failed to apply smart mapping plan" });
+    }
   });
 
   app.post("/api/imports/apply", isAdmin, uploadLimiter, async (req, res) => {
@@ -1093,7 +1772,7 @@ export async function registerRoutes(
     // Apply records that are Matched or Unmatched
     const matchedRecords = await db.select().from(studentImports)
       .where(inArray(studentImports.importStatus, ["Matched", "Unmatched"]));
-    
+
     for (const record of matchedRecords) {
       await db.insert(studentsProcessed).values({
         studentNumber: record.studentNumber,
@@ -1106,16 +1785,16 @@ export async function registerRoutes(
         schoolRegistryId: record.matchedSchoolId,
         municipality: record.municipality || "Laguna",
         province: "Laguna",
-        enrollmentStatus: record.enrollmentStatus === "OE" ? "Officially Enrolled" : 
-                          record.enrollmentStatus === "NOE" ? "Not Officially Enrolled" : 
-                          (record.enrollmentStatus || "For Verification"),
+        enrollmentStatus: record.enrollmentStatus === "OE" ? "Officially Enrolled" :
+          record.enrollmentStatus === "NOE" ? "Not Officially Enrolled" :
+            (record.enrollmentStatus || "For Verification"),
         importedSource: record.importSource,
         mappingStatus: "verified",
       });
 
       await db.update(studentImports).set({ importStatus: "Applied" }).where(eq(studentImports.id, record.id));
     }
-    
+
     enterpriseCache.invalidate("gis:");
     res.json({ success: true, appliedCount: matchedRecords.length });
   });
@@ -1128,7 +1807,7 @@ export async function registerRoutes(
       or(isNull(schoolRegistry.schoolType), ne(schoolRegistry.schoolType, "Barangay")),
     ));
     const aliasCount = await db.select({ value: count() }).from(schoolAliases);
-    
+
     const matchedCount = await db.select({ value: count() }).from(studentImports).where(eq(studentImports.importStatus, "Matched"));
     const unmatchedCount = await db.select({ value: count() }).from(studentImports).where(eq(studentImports.importStatus, "Unmatched"));
     const appliedCount = await db.select({ value: count() }).from(studentImports).where(eq(studentImports.importStatus, "Applied"));
@@ -1325,7 +2004,7 @@ export async function registerRoutes(
         scholarships: req.query.scholarships,
         programs: req.query.programs
       });
-      
+
       const toArray = (val?: string | string[]) => {
         if (!val) return undefined;
         return Array.isArray(val) ? val : [val];
@@ -1407,13 +2086,13 @@ export async function registerRoutes(
     if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
     const password = typeof req.body?.password === "string" ? req.body.password : "";
     if (!password) return res.status(400).json({ success: false, message: "Password is required" });
-    
+
     try {
       const db = getDb();
       const [user] = await db.select().from(users).where(eq(users.id, req.user.id)).limit(1);
-      
+
       if (!user) return res.status(401).json({ success: false, message: "User not found" });
-      
+
       const isValid = await comparePasswords(password, user.password);
       if (isValid) {
         return res.json({ success: true });
@@ -1667,7 +2346,7 @@ export async function seedDatabase() {
       ...school,
       schoolType: school.schoolName.includes("Colleges") ? "College" : "Senior High School",
       // altitude: null,
-      
+
       isActive: true,
       source: "5-School Test Dataset",
     });

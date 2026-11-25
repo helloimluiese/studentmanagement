@@ -21,6 +21,7 @@ import { getSchoolStatus, hasCoordinates, normalizeSchoolName, type SchoolStatus
 import { GEO_BOUNDS, isStudentActive, ACTIVE_ENROLLMENT_STATUSES } from "@shared/constants";
 import { normalizeStudentProgramValue } from "@shared/programRecognition";
 import { isBarangayScholar, resolveScholarBarangay } from "@shared/scholarBarangayResolver";
+import { resolveAndRegisterFromCair } from "./cairCatalog";
 import { and, desc, eq, isNull, like, ne, inArray, or } from "drizzle-orm";
 import { type InsertSchoolRegistry } from '@shared/schema';
 
@@ -139,6 +140,8 @@ export async function syncStudents(
   let skipped = 0;
   let failed = 0;
   let needsReview = 0;
+  let schoolsCreated = 0;
+  const cairBatchCache = new Map<string, SchoolRegistry | null>();
   const [schoolMatcher, barangays] = await Promise.all([
     loadSchoolMatcher(),
     getDb().select().from(barangayRegistry),
@@ -194,9 +197,26 @@ export async function syncStudents(
       const selectedSchool = record.schoolRegistryId
         ? await storage.getSchoolRegistry(record.schoolRegistryId)
         : undefined;
-      const school = selectedSchool && selectedSchool.isActive && isSchoolDirectoryEntry(selectedSchool)
+      let school = selectedSchool && selectedSchool.isActive && isSchoolDirectoryEntry(selectedSchool)
         ? selectedSchool
         : schoolMatcher.match(lastSchoolName).school;
+
+      if (!school) {
+        const cacheKey = `${lastSchoolName.toLowerCase()}|${municipality.toLowerCase()}|${(record.address || "").toLowerCase()}`;
+        if (cairBatchCache.has(cacheKey)) {
+          school = cairBatchCache.get(cacheKey) ?? null;
+        } else {
+          const fromCair = await resolveAndRegisterFromCair(lastSchoolName, {
+            address: record.address,
+            municipality: record.municipality,
+            province: record.province,
+            studentType: record.studentType || record.strand,
+          });
+          if (fromCair) schoolsCreated += 1;
+          cairBatchCache.set(cacheKey, fromCair);
+          school = fromCair;
+        }
+      }
       const mappingStatus = school && hasCoordinates(school) ? "verified" : "needs_review";
       const scholarLocation = isBarangayScholar(record.iskolarNiKap)
         ? resolveScholarBarangay(record, barangays)
@@ -276,8 +296,8 @@ export async function syncStudents(
     skipped,
     failed,
     needsReview,
-    schoolsCreated: 0,
-    schoolsGeocoded: 0,
+    schoolsCreated,
+    schoolsGeocoded: schoolsCreated,
   };
 }
 

@@ -268,6 +268,9 @@ export function AdminSchoolRegistry({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/imports/staging"] });
       queryClient.invalidateQueries({ queryKey: ["/api/settings/diagnostics"] });
+      queryClient.invalidateQueries({ queryKey: [api.gis.overview.path] });
+      queryClient.invalidateQueries({ queryKey: [api.gis.processedStudents.path] });
+      queryClient.invalidateQueries({ queryKey: [api.schoolRegistry.list.path] });
     },
   });
 

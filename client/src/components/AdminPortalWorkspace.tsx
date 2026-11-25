@@ -27,8 +27,9 @@ import {
   MapPin,
   ChevronLeft,
   ChevronRight,
-  Target, Building2, Folder, RotateCcw, Loader2, Layers
+  Target, Building2, Folder, RotateCcw, Loader2, Layers, Sparkles
 } from "lucide-react";
+import { UnmappedSmartMapperModal } from "./UnmappedSmartMapperModal";
 import type { Import, SchoolRegistry as School, StudentProcessed } from "@shared/schema";
 import { hasCoordinates } from "@shared/schoolRegistry";
 import { GEO_BOUNDS } from "@shared/constants";
@@ -193,6 +194,13 @@ export function AdminPortalWorkspace({
   const [isDeletingLogs, setIsDeletingLogs] = useState(false);
 
   const [selectedArchiveFolder, setSelectedArchiveFolder] = useState<string | null>(null);
+  const [smartMapperOpen, setSmartMapperOpen] = useState(false);
+  const [smartMapperFocusSchool, setSmartMapperFocusSchool] = useState<string | null>(null);
+
+  const openSmartMapper = (schoolName?: string | null) => {
+    setSmartMapperFocusSchool(schoolName?.trim() || null);
+    setSmartMapperOpen(true);
+  };
 
   const [passwordPrompt, setPasswordPrompt] = useState<{
     isOpen: boolean;
@@ -782,10 +790,22 @@ export function AdminPortalWorkspace({
                     <h1 className="text-2xl font-bold tracking-tight text-foreground">System Overview</h1>
                     <p className="text-sm text-muted-foreground">Real-time statistics and enrollment analytics.</p>
                   </div>
-                  <Button variant="destructive" onClick={archiveAllData} className="gap-2 shadow-sm transition-transform active:scale-95">
-                    <Archive className="h-4 w-4" />
-                    Reset / Archive Data
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {studentStats.unmapped > 0 && (
+                      <Button
+                        type="button"
+                        onClick={() => openSmartMapper(null)}
+                        className="gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition-transform active:scale-95"
+                      >
+                        <Sparkles className="h-4 w-4" />
+                        Generate Mapping ({studentStats.unmapped.toLocaleString()} Unmapped)
+                      </Button>
+                    )}
+                    <Button variant="destructive" onClick={archiveAllData} className="gap-2 shadow-sm transition-transform active:scale-95">
+                      <Archive className="h-4 w-4" />
+                      Reset / Archive Data
+                    </Button>
+                  </div>
                 </div>
 
                 {studentDataMessage ? (
@@ -1009,7 +1029,13 @@ export function AdminPortalWorkspace({
                   <StudentStat title="Total Students" value={studentStats.total} />
                   <StudentStat title="OE Students" value={studentStats.active} tone="emerald" />
                   <StudentStat title="Mapped Students" value={studentStats.mapped} tone="sky" />
-                  <StudentStat title="Unmapped Students" value={studentStats.unmapped} tone="amber" />
+                  <StudentStat
+                    title="Unmapped Students"
+                    value={studentStats.unmapped}
+                    tone="amber"
+                    onClick={() => openSmartMapper(null)}
+                    actionLabel={studentStats.unmapped > 0 ? "Click to Generate Mapping →" : "All Mapped ✓"}
+                  />
                   <StudentStat title="New Students" value={studentStats.newStudents} tone="violet" />
                   <StudentStat title="Archived Students" value={studentStats.archived} tone="slate" />
                 </div>
@@ -1158,7 +1184,21 @@ export function AdminPortalWorkspace({
                               <TableCell className="text-foreground/90">{student.program}</TableCell>
                               <TableCell className="text-muted-foreground">{student.track || "General"}</TableCell>
                               <TableCell className="text-muted-foreground">{student.yearLevel || "Unspecified"}</TableCell>
-                              <TableCell className="max-w-[210px] truncate text-foreground/90" title={student.lastSchoolName}>{student.lastSchoolName}</TableCell>
+                              <TableCell className="max-w-[230px]" title={student.lastSchoolName}>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="truncate text-foreground/90">{student.lastSchoolName}</span>
+                                  {(!student.schoolRegistryId || student.mappingStatus === "needs_review" || student.mappingStatus === "pending") && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openSmartMapper(student.lastSchoolName)}
+                                      className="shrink-0 rounded-md border border-amber-500/35 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
+                                      title="Generate smart mapping for this school"
+                                    >
+                                      Map →
+                                    </button>
+                                  )}
+                                </div>
+                              </TableCell>
                               <TableCell className="text-muted-foreground">{student.municipality || "Laguna"}</TableCell>
                               <TableCell><StudentStatusBadge status={student.enrollmentStatus} /></TableCell>
                               <TableCell className="text-muted-foreground">{formatSyncTime(new Date(student.enrollmentDate || student.syncedAt).getTime())}</TableCell>
@@ -1275,7 +1315,15 @@ export function AdminPortalWorkspace({
                                     {matchedSchoolName ? (
                                       <span className="font-medium text-foreground">{matchedSchoolName}</span>
                                     ) : (
-                                      <span className="text-muted-foreground/60 italic">Unmapped</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => openSmartMapper(st.lastSchoolName)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
+                                        title="Click to generate mapping for this unmapped school"
+                                      >
+                                        <Sparkles className="h-3 w-3" />
+                                        Unmapped · Map
+                                      </button>
                                     )}
                                   </TableCell>
                                   <TableCell className="hidden align-top text-muted-foreground lg:table-cell">{st.lastSchoolType || "—"}</TableCell>
@@ -1775,6 +1823,13 @@ export function AdminPortalWorkspace({
 
         </main>
       </Tabs>
+
+      <UnmappedSmartMapperModal
+        open={smartMapperOpen}
+        onOpenChange={setSmartMapperOpen}
+        existingSchools={schools}
+        initialFocusSchool={smartMapperFocusSchool}
+      />
     </div>
   );
 }
@@ -1912,15 +1967,56 @@ function studentProfileFields(student: StudentProcessed) {
   ];
 }
 
-function StudentStat({ title, value, tone = "default" }: { title: string; value: number; tone?: "default" | "emerald" | "sky" | "amber" | "violet" | "slate" }) {
+function StudentStat({
+  title,
+  value,
+  tone = "default",
+  onClick,
+  actionLabel,
+}: {
+  title: string;
+  value: number;
+  tone?: "default" | "emerald" | "sky" | "amber" | "violet" | "slate";
+  onClick?: () => void;
+  actionLabel?: string;
+}) {
   const toneStyles = {
     default: "border-border/60 bg-card/80 text-foreground",
     emerald: "border-emerald-500/20 bg-card/80 text-foreground",
     sky: "border-sky-500/20 bg-card/80 text-foreground",
-    amber: "border-amber-500/20 bg-card/80 text-foreground",
+    amber: "border-amber-500/30 bg-amber-500/[0.06] text-foreground",
     violet: "border-violet-500/20 bg-card/80 text-foreground",
     slate: "border-border/60 bg-card/80 text-foreground",
   }[tone];
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "group rounded-xl border px-3.5 py-2.5 text-left shadow-sm backdrop-blur-xl transition-all hover:border-amber-500/60 hover:bg-amber-500/15 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-500/40 cursor-pointer",
+          toneStyles,
+        )}
+      >
+        <div className="flex items-center justify-between gap-1">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors">
+            {title}
+          </p>
+          <Sparkles className="h-3.5 w-3.5 text-amber-500 opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all shrink-0" />
+        </div>
+        <p className="mt-1 text-2xl font-black font-mono tracking-tight text-foreground">
+          {value.toLocaleString()}
+        </p>
+        {actionLabel && (
+          <p className="mt-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 truncate">
+            {actionLabel}
+          </p>
+        )}
+      </button>
+    );
+  }
+
   return (
     <div className={cn("rounded-xl border px-3.5 py-2.5 shadow-sm backdrop-blur-xl", toneStyles)}>
       <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{title}</p>

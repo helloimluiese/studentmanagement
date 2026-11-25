@@ -4,7 +4,7 @@ import { assertSafeExternalUrl } from "./security";
 
 type SourceRecord = Record<string, unknown>;
 
-const MAX_PREVIEW_RECORDS = 5000;
+const MAX_PREVIEW_RECORDS = 25000;
 const PREFERRED_ARRAY_KEYS = [
   "data",
   "records",

@@ -257,6 +257,15 @@ process.on("uncaughtException", (err) => {
           env: env.NODE_ENV,
           url: `http://localhost:${currentPort}`,
         });
+        // Non-blocking background pass to auto-map any previously unmapped students via CAIR PH dataset
+        void import("./cairCatalog")
+          .then(({ backfillUnmappedStudentsFromCair }) => backfillUnmappedStudentsFromCair())
+          .then((res) => {
+            if (res.resolvedStudents > 0) {
+              logger.info("cair_backfill_complete", res);
+            }
+          })
+          .catch((err) => logger.warn("cair_backfill_failed", { error: String(err) }));
       });
     };
 
