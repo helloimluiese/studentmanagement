@@ -680,8 +680,31 @@ export function UnmappedSmartMapperModal({
                             <div className="flex items-start gap-3 min-w-0 flex-1">
                               <Checkbox
                                 checked={isChecked}
-                                disabled={!hasValidProposal}
                                 onCheckedChange={(val) => {
+                                  if (val && !hasValidProposal) {
+                                    // Seed a manual proposal & open the map pin editor instead of blocking with a disabled stop cursor
+                                    updateGroupProposal(
+                                      group.groupKey,
+                                      {
+                                        schoolName: group.rawSchoolName,
+                                        schoolType: "Public Senior High School",
+                                        sector: "Public",
+                                        barangay: "",
+                                        municipality:
+                                          group.consensusLocality.split(",")[0]?.trim() ||
+                                          "Biñan City",
+                                        province: "Laguna",
+                                        address: group.consensusLocality,
+                                        latitude: 14.3362,
+                                        longitude: 121.0805,
+                                        source: "Manual",
+                                        confidence: 100,
+                                      },
+                                      true,
+                                    );
+                                    setExpandedPinKey(group.groupKey);
+                                    return;
+                                  }
                                   setSelectedKeys((prev) => {
                                     const next = new Set(prev);
                                     if (val) next.add(group.groupKey);
@@ -689,7 +712,7 @@ export function UnmappedSmartMapperModal({
                                     return next;
                                   });
                                 }}
-                                className="mt-1"
+                                className="mt-1 cursor-pointer"
                               />
                               <div className="min-w-0 flex-1 space-y-1">
                                 <div className="flex flex-wrap items-center gap-2">

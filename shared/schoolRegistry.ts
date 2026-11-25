@@ -20,6 +20,21 @@ export const SCHOOL_STATUSES = [
 export type SchoolStatus = (typeof SCHOOL_STATUSES)[number];
 
 const SCHOOL_ABBREVIATIONS: Array<[RegExp, string]> = [
+  [/\buphsl\s+gma\b/g, "university of perpetual help system gma"],
+  [/\buphsd\b/g, "university of perpetual help system dalta"],
+  [/\buphsl\b/g, "university of perpetual help system laguna"],
+  [/\buphs\b/g, "university of perpetual help system"],
+  [/\bjzgmsat\b/g, "jacobo z gonzales memorial national high school"],
+  [/\bjzgmnhs\b/g, "jacobo z gonzales memorial national high school"],
+  [/\bcgc\b/g, "city global college"],
+  [/\bspcba\b/g, "san pedro college of business administration"],
+  [/\bsmcl\b/g, "saint michaels college of laguna"],
+  [/\bpup\b/g, "polytechnic university of the philippines"],
+  [/\bpnc\b/g, "pamantasan ng cabuyao"],
+  [/\blspu\b/g, "laguna state polytechnic university"],
+  [/\bcbsua\b/g, "central bicol state university of agriculture"],
+  [/\bustp\b/g, "university of science and technology of southern philippines"],
+  [/\bpmms\b/g, "philippine merchant marine school"],
   [/\bmnhs\b/g, "memorial national high school"],
   [/\bnhs\b/g, "national high school"],
   [/\bshs\b/g, "senior high school"],
