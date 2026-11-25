@@ -24,6 +24,7 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().url().optional().or(z.literal("")),
   GOOGLE_MAPS_API_KEY: z.string().optional(),
   VITE_GOOGLE_MAPS_API_KEY: z.string().optional(),
+  ML_SERVICE_URL: z.string().optional(),
 });
 
 export interface ValidatedEnv {

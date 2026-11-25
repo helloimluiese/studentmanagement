@@ -18,6 +18,8 @@ server/uploads/*
 database_dump.sql
 backups
 scratch
+test-data
+ml-service
 docs
 scripts
 attached_assets

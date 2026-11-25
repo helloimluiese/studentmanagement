@@ -35,6 +35,7 @@ import path from "node:path";
 import { hasCoordinates, normalizeMunicipality, normalizeSchoolName } from "@shared/schoolRegistry";
 import { SchoolMatchingEngine } from "./schoolMatcher";
 import { analyzeCairCandidates } from "./cairCatalog";
+import { getMlAnalyticsInsights } from "./mlClient";
 import { z } from "zod";
 import { previewIntegrationSource } from "./integrationService";
 import {
@@ -936,6 +937,18 @@ export async function registerRoutes(
       }
     }
     res.json({ success: true, message: "Settings saved successfully" });
+  });
+
+  // Python FastAPI (scikit-learn) Predictive Analytics & Retention ML Bridge
+  app.get("/api/analytics/ml-insights", async (req, res) => {
+    try {
+      const forceRefresh = req.query.refresh === "1" || req.query.refresh === "true";
+      const insights = await getMlAnalyticsInsights(forceRefresh);
+      res.json(insights);
+    } catch (err: any) {
+      console.error("[analytics/ml-insights] error:", err);
+      res.status(500).json({ message: err?.message || "Failed to compute ML insights" });
+    }
   });
 
   // Departments and Programs API

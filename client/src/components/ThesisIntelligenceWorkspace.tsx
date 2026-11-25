@@ -11,7 +11,9 @@ import {
   Users,
   ChevronRight,
   PieChart,
+  Sparkles,
 } from "lucide-react";
+import { PredictiveAnalyticsPanel } from "./PredictiveAnalyticsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,7 +42,7 @@ export function ThesisIntelligenceWorkspace({
   onLaunchDefenseMode,
   onSelectSchoolOnMap,
 }: ThesisIntelligenceWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<"feeders" | "municipalities" | "departments" | "demographics">("feeders");
+  const [activeTab, setActiveTab] = useState<"feeders" | "municipalities" | "departments" | "demographics" | "ml_forecast">("feeders");
   const [searchQuery, setSearchQuery] = useState("");
 
   const activeStudents = useMemo(
@@ -229,7 +231,7 @@ export function ThesisIntelligenceWorkspace({
 
       {/* Standard Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as any)} className="w-full">
-        <TabsList className="grid h-11 w-full grid-cols-2 rounded-xl border border-border/60 bg-card/60 p-1 shadow-sm sm:grid-cols-4">
+        <TabsList className="grid h-auto min-h-11 w-full grid-cols-2 rounded-xl border border-border/60 bg-card/60 p-1 shadow-sm sm:grid-cols-5">
           <TabsTrigger value="feeders" className="flex items-center gap-2 rounded-lg text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
             <School className="h-3.5 w-3.5" />
             Top Feeder Schools
@@ -245,6 +247,10 @@ export function ThesisIntelligenceWorkspace({
           <TabsTrigger value="demographics" className="flex items-center gap-2 rounded-lg text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
             <PieChart className="h-3.5 w-3.5" />
             Demographics
+          </TabsTrigger>
+          <TabsTrigger value="ml_forecast" className="flex items-center gap-2 rounded-lg text-xs font-semibold text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
+            <Sparkles className="h-3.5 w-3.5" />
+            AI &amp; ML Forecasting
           </TabsTrigger>
         </TabsList>
 
@@ -480,6 +486,10 @@ export function ThesisIntelligenceWorkspace({
               </div>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="ml_forecast">
+          <PredictiveAnalyticsPanel onSelectSchoolOnMap={onSelectSchoolOnMap} />
         </TabsContent>
       </Tabs>
     </div>
