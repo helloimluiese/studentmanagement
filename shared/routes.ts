@@ -130,6 +130,8 @@ const studentManagementStatusSchema = z.enum([
   "Officially Enrolled",
   "OE",
   "NOE",
+  "PULL OUT",
+  "Pull Out",
   "Pending",
   "Dropped",
   "Transferred",

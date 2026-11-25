@@ -83,6 +83,7 @@ function normalizeEnrollmentStatus(value?: string | null) {
   if (normalized === "officially enrolled") return "Officially Enrolled";
   if (normalized === "oe") return "OE";
   if (normalized === "noe") return "NOE";
+  if (normalized === "pull out" || normalized === "pullout" || normalized === "pull-out") return "PULL OUT";
   if (normalized === "pending") return "Pending";
   if (normalized === "dropped") return "Dropped";
   if (normalized === "transferred") return "Transferred";

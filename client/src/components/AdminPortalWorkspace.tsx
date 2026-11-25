@@ -1834,7 +1834,7 @@ export function AdminPortalWorkspace({
   );
 }
 
-const STUDENT_STATUSES = ["Enrolled", "Officially Enrolled", "OE", "NOE", "Pending", "Dropped", "Transferred", "Graduated", "Archived"];
+const STUDENT_STATUSES = ["OE", "NOE", "PULL OUT", "Officially Enrolled", "Enrolled", "Pending", "Dropped", "Transferred", "Graduated", "Archived"];
 const STUDENT_SORTS = [
   "Newest",
   "Student Number",
